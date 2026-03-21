@@ -1,0 +1,14 @@
+# Design LLM Gateway with Model Routing and Cost Controls
+
+## Interview framing
+- Concept group: AI / GenAI Systems
+- Expected depth: MEDIUM
+- Focus on requirements, bottlenecks, and tradeoffs.
+
+## Checklist
+- Functional + NFRs
+- Capacity and bottleneck estimation
+- Data model + APIs
+- Failure modes and mitigation
+- Cost and operations
+

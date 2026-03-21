@@ -1,0 +1,1696 @@
+# tactiq.io free youtube transcript
+# Beginner System Design Interview: Design Bitly w/ a Ex-Meta Staff Engineer
+# https://www.youtube.com/watch/iUU4O1sWtJA
+
+00:00:00.359 hello everyone welcome back to the
+00:00:01.880 channel uh I'm Evan co-founder of hello
+00:00:04.520 interview and a former meta staff
+00:00:06.720 engineer and today I actually wanted to
+00:00:08.639 take a step back and make a more
+00:00:10.639 beginner friendly video for you all
+00:00:12.599 today so many of you have seen our
+00:00:13.920 system design video breakdowns uh we're
+00:00:15.719 going to do a new one of those today and
+00:00:17.880 it's going to be for the classic
+00:00:19.199 question design a URL shortener which is
+00:00:21.400 everybody's first system design question
+00:00:24.279 and in this video as I mentioned I'm
+00:00:25.320 going to slow things down a bit I'm
+00:00:26.519 going to teach Concepts that we
+00:00:28.039 otherwise take for granted in some of
+00:00:29.519 our other videos so if you're new to
+00:00:31.240 system design or you're dusting off the
+00:00:32.759 cot webs this is the place to start uh
+00:00:36.200 if you like our content you want more of
+00:00:37.800 it please make sure that you like and
+00:00:39.680 subscribe uh the increasing number of
+00:00:41.680 subscribers is really motivating to us
+00:00:43.440 it makes us want to create more content
+00:00:45.000 for you so make sure you smash those
+00:00:46.800 buttons if you haven't already lastly if
+00:00:49.199 videos aren't your thing I've linked the
+00:00:51.640 written resources in the description as
+00:00:53.440 well so if you don't want to watch this
+00:00:55.079 whole video you can just come here and
+00:00:56.520 read the written form there's also tons
+00:00:58.680 of other common problem break Downs over
+00:01:00.359 a dozen now on the left hand side you
+00:01:02.640 can also try all of these yourself with
+00:01:05.640 guided practice and so guided practice
+00:01:08.080 is a tool that quickly just lets you
+00:01:09.720 walk through designing systems on your
+00:01:11.560 own and then you get this personalized
+00:01:13.799 feedback for each step along the process
+00:01:16.240 this feedback was tuned by myself and my
+00:01:19.040 co-founder Stefan so give that a go and
+00:01:21.400 then the last thing here is that if
+00:01:23.680 you're looking uh or if you're preparing
+00:01:25.680 for interviews the best thing that you
+00:01:27.240 can do is mock interviews and that's our
+00:01:29.280 specialty here at hello interview so
+00:01:31.000 come on over do a mock interview with a
+00:01:32.960 senior plus engineer manager from your
+00:01:34.479 target company and they'll tell you
+00:01:36.520 exactly where your gaps are and how you
+00:01:38.320 can improve all right let's get into
+00:01:43.640 it before we start designing our URL
+00:01:46.360 shortener let me take a brief moment to
+00:01:48.439 just explain the framework or the steps
+00:01:50.799 that we're going to follow both in this
+00:01:52.119 interview and this is also the framework
+00:01:54.079 or steps that I suggest you follow for
+00:01:55.840 any of your system design interviews so
+00:01:58.200 the first thing that we're going to do
+00:01:59.159 is we're going to Define the
+00:02:00.200 requirements of our system this is both
+00:02:02.360 the functional requirements or the core
+00:02:04.240 features as well as the non-functional
+00:02:06.280 requirements or the qualities of the
+00:02:08.160 system things like scale durability
+00:02:10.360 fault
+00:02:11.200 tolerance after we do that we'll Define
+00:02:13.400 or outline the core entities this is
+00:02:15.879 really simple highlevel list of the core
+00:02:19.280 entities that are going to be persisted
+00:02:21.599 and exchanged in our system another way
+00:02:23.519 to think of this is like the names of
+00:02:24.800 the tables or collections that you would
+00:02:26.560 have in your data model once we do that
+00:02:29.120 we're going to move on to the API this
+00:02:30.800 is the user facing API it's the contract
+00:02:33.640 between your client and your users and
+00:02:35.760 your backend service from here we're
+00:02:38.120 going to skip data flow this is only
+00:02:39.800 applicable to infra heavy system design
+00:02:41.840 questions so like designer rate limiter
+00:02:43.480 design a message CU stuff like that so
+00:02:45.440 not applicable to a user facing product
+00:02:47.480 like a URL shortener so instead we're
+00:02:49.599 going to go right to high Lev Design
+00:02:51.360 This is where we're going to head to the
+00:02:52.319 Whiteboard we're going to start drawing
+00:02:53.400 boxes in arrows in order to outline a
+00:02:55.519 system where the primary goal is to
+00:02:57.959 satisfy the functional requirements
+00:02:59.920 ments that we outlined in one and so at
+00:03:02.200 this point our system is going to be
+00:03:03.239 really simple it's not going to be able
+00:03:04.560 to scale it's not going to be able to do
+00:03:05.920 anything too fancy it's just going to be
+00:03:08.159 able to satisfy those core features that
+00:03:10.560 we outlined but from there we're going
+00:03:13.120 to move on to our deep Dives where
+00:03:14.519 things are going to get fun and we're
+00:03:16.040 going to go one by one through those
+00:03:17.280 non-functional requirements in order to
+00:03:20.239 evolve our highle design in a way such
+00:03:22.680 that it ends up satisfying each of those
+00:03:24.319 non-functional requirements and at the
+00:03:26.440 end we're going to have a system that
+00:03:27.879 satisfies all of our functional
+00:03:29.000 requirements and all of our
+00:03:29.799 non-functional requirements and we're
+00:03:31.480 going to feel really good like we pass
+00:03:33.480 the
+00:03:36.840 interview as promised we're going to
+00:03:38.799 start our design with the requirements
+00:03:40.599 of the
+00:03:41.400 system and so the first thing that we do
+00:03:44.319 is we start with the functional
+00:03:46.159 requirements the functional requirements
+00:03:48.200 are the core features of the system this
+00:03:50.080 is where you're going to try to identify
+00:03:51.599 the top two to three features that are
+00:03:53.959 necessary and that you will have time to
+00:03:55.640 design in your 35 to 45 minute interview
+00:04:00.079 now if you were told to design a system
+00:04:01.760 that you already know well then this
+00:04:03.200 should be pretty easy but you might also
+00:04:05.519 be asked to design a system that you've
+00:04:06.760 maybe never heard of in this case you're
+00:04:09.079 going to want to ask a lot of questions
+00:04:10.519 this is the time where you would pepper
+00:04:11.640 your interviewer with questions in order
+00:04:13.200 to better understand the system that
+00:04:14.879 you're required to build in our case
+00:04:17.120 what is a URL shortener well a URL
+00:04:19.440 shortener is a service that converts
+00:04:21.040 long URLs into short ones and then those
+00:04:23.240 short URLs will redirect you to the
+00:04:24.919 original URL so you can take this long
+00:04:27.000 URL give it to the URL shortener it
+00:04:29.240 returns this Returns the short thing you
+00:04:31.440 can put the short thing in your browser
+00:04:32.840 and it's going to redirect you here
+00:04:34.759 pretty simple so in our case functional
+00:04:38.800 requirements can always be thought of as
+00:04:40.160 like these users should be able to users
+00:04:42.400 can you know users will statements and
+00:04:46.240 so what are ours well that first one is
+00:04:48.000 that users can create a short URL from a
+00:04:52.880 long URL or an original URL perfect
+00:04:55.440 that's our first thing what's the second
+00:04:57.360 thing well users can be read directed to
+00:05:00.919 the original URL from the short
+00:05:03.759 URL easy right those are the two core
+00:05:06.960 features of a URL shortener now I'm
+00:05:09.320 going to add a little bit of flavor
+00:05:10.440 that's often added in these questions
+00:05:11.880 and that I'll uh have candidates address
+00:05:14.320 if I'm conducting this interview and
+00:05:16.360 that's that I want to optionally support
+00:05:18.479 a custom Alias and so this is that users
+00:05:21.479 could come to us with their own short
+00:05:23.039 Alias maybe instead of us generating
+00:05:25.639 this random thing they give us for
+00:05:27.720 example Evan and then their short URL
+00:05:30.080 becomes SL Evan assuming it doesn't
+00:05:31.919 already exist so we'll support that
+00:05:34.400 optionally if they want to provide it
+00:05:36.120 we'll also optionally support an
+00:05:38.199 expiration time and so maybe somebody's
+00:05:40.800 creating a short URL for a conference or
+00:05:42.720 something and they only want it to be
+00:05:44.039 valid for the week then we'll expire it
+00:05:46.199 after that week if they give us that
+00:05:47.880 expiration time this means that if
+00:05:49.440 somebody tries to navigate to that short
+00:05:50.840 URL after the expiration they'll just
+00:05:52.880 get an error or something telling them
+00:05:54.720 that it's already expired so these are
+00:05:57.120 the core functional requirements of the
+00:05:59.120 system
+00:06:00.919 um the next thing that you would do is
+00:06:02.440 that you would go into the nonfunctional
+00:06:04.840 what we refer to as the non-functional
+00:06:06.759 requirements of the system now the
+00:06:09.560 non-functional requirements are instead
+00:06:12.000 of being features and like they are the
+00:06:15.000 qualities of the system and so the
+00:06:17.560 quality of the system are all of those
+00:06:18.880 words you've heard these are like these
+00:06:20.120 Iles these ilities words these things
+00:06:22.039 like the scalability the latency the
+00:06:24.160 durability security fault tolerance is
+00:06:26.919 your system compliant this is where you
+00:06:28.639 talk about cap their
+00:06:30.240 all of those things what qualities does
+00:06:32.120 the system need to uphold in order to
+00:06:34.360 ensure a good user experience and that
+00:06:36.599 we're meeting user
+00:06:37.840 expectations and so what you typically
+00:06:39.599 want to do when you get to
+00:06:40.360 non-functional requirements and and
+00:06:41.919 these are hard often times especially
+00:06:43.639 for more Junior candidates to think of
+00:06:46.400 is that you should go one by one through
+00:06:48.560 those Illy statements maybe you have a
+00:06:50.319 list of them um kind of readily on your
+00:06:53.560 on your table as you're going into the
+00:06:54.960 interview and you think about which one
+00:06:56.960 of them are uniquely interesting and
+00:06:58.520 relevant to this system
+00:07:00.759 and so for example the first one that we
+00:07:02.840 could look at is latency how is latency
+00:07:05.639 important in our system well it's really
+00:07:07.960 important that that redirection is low
+00:07:10.160 latency and so one system requirement
+00:07:12.680 and these are instead of user should be
+00:07:14.360 able to this is the system should be
+00:07:16.960 statements so the system should be low
+00:07:20.639 latency on
+00:07:23.280 redirects so if we give it a short URL
+00:07:25.680 we should automatically go to that
+00:07:27.440 original URL so not only did did we
+00:07:29.960 choose the non-functional requirement
+00:07:31.479 but we put it in the context of our
+00:07:33.479 system it's not just low latency it's
+00:07:35.199 specifically low latency on
+00:07:37.160 redirects and we want to quantify it too
+00:07:39.960 we're going to say about 200
+00:07:41.479 milliseconds 200 milliseconds is a good
+00:07:43.919 number here because it's what is uh the
+00:07:46.639 humans perceive as real time so anything
+00:07:49.520 under 200 milliseconds you wouldn't even
+00:07:50.879 notice the difference uh 200
+00:07:52.400 milliseconds is like this snap of a
+00:07:53.840 finger it's real time so it's a good
+00:07:55.280 lower Bound for us here so we have one
+00:07:57.599 non-functional requirement lower latency
+00:07:59.520 low latency on
+00:08:01.159 redirects another thing that we can
+00:08:02.919 think about is the scale of the system
+00:08:05.759 and this is a time when I would ask my
+00:08:06.960 interviewer I would say how large of a
+00:08:09.280 system are we designing how many users
+00:08:11.319 what's the scale of this system and they
+00:08:13.879 might tell you to estimate it uh or they
+00:08:16.159 might just give you kind of a sense of
+00:08:18.240 what the scale is I typically would do
+00:08:19.720 the latter and I would tell a candidate
+00:08:21.639 that they should expect 100 million
+00:08:23.000 daily active users and around 1 billion
+00:08:25.800 URLs that gets shortened kind of in
+00:08:28.080 totality over over over over all time
+00:08:30.800 and so that would turn into a functional
+00:08:31.919 requirement of the system should be able
+00:08:33.719 to scale to support to support 100
+00:08:37.479 million daily active
+00:08:39.360 users and 1 billion URLs fantastic
+00:08:43.559 making good progress on the
+00:08:44.480 non-functional
+00:08:45.560 requirements another one that's
+00:08:47.160 interesting here which is a little bit
+00:08:49.160 handwavy whether it fits in non-function
+00:08:50.760 requirements but I want to call it out
+00:08:52.120 because of how important it is it's that
+00:08:54.279 each of these short URLs or each of
+00:08:55.800 these short codes they need to be unique
+00:08:58.279 so the system needs to ensure sure
+00:09:00.480 uniqueness of short codes these short
+00:09:03.519 codes are these kind of things that
+00:09:04.880 we're pending to the end of the URL
+00:09:06.760 right we need to ensure uniqueness of
+00:09:08.440 short codes so that there's no
+00:09:09.560 collisions so that people don't end up
+00:09:11.160 getting redirected to a site they
+00:09:12.279 weren't expecting to go to so those
+00:09:14.320 always need to be unique that's
+00:09:15.839 definitely going to be a core system
+00:09:17.959 requirement and then the last one here
+00:09:20.240 that I'm going to do which typically you
+00:09:21.600 might do first but it's always going to
+00:09:23.480 be considered and that's cap theorem so
+00:09:26.480 really quickly what is Cap theorem well
+00:09:28.320 cap theorem is a theorem that states
+00:09:30.120 that from um when considering
+00:09:32.040 consistency availability and partition
+00:09:34.920 tolerance you can only ever have two of
+00:09:37.760 those three things now partition
+00:09:40.200 tolerance in distributed systems like
+00:09:41.839 we're almost always designing in system
+00:09:43.399 design interviews this is a guarantee
+00:09:45.680 you have to have partition tolerance
+00:09:47.320 because you're going to have partitions
+00:09:48.720 you're going to have different instances
+00:09:49.959 for example of your database you're
+00:09:51.079 going to horizontally scale your servers
+00:09:54.040 and so the decision really becomes is it
+00:09:56.680 consistency or availability does my
+00:09:59.680 system need strong consistency or does
+00:10:02.240 my system need High availability and
+00:10:05.279 what I want you to think about as you're
+00:10:07.079 in an interview is do I need strong read
+00:10:10.720 after write
+00:10:12.279 consistency the way to think about this
+00:10:14.360 is does every single read of my system
+00:10:17.440 have to read the latest right or else
+00:10:21.000 the system breaks or fails in some way
+00:10:23.120 so common examples of systems that need
+00:10:24.959 this read after write strong consistency
+00:10:27.120 are like a banking application or a
+00:10:29.320 ticket booking
+00:10:30.440 system the the example being in the
+00:10:32.560 ticket booking system case if somebody
+00:10:34.000 went and booked the last ticket to the
+00:10:35.480 Taylor Swift concert in Germany and then
+00:10:37.680 I in America went to book that same
+00:10:39.519 ticket and I went and read the database
+00:10:41.320 and it told me it was still available
+00:10:42.720 because I didn't have strong read after
+00:10:44.040 write consistency I would book that
+00:10:45.880 ticket and now we would both show up and
+00:10:47.399 we would be fighting for the same seed
+00:10:49.480 that would be bad this would be like a
+00:10:51.040 fatal error to our system we we can't
+00:10:52.760 have that same to in a banking app
+00:10:55.240 somebody else trades a stock especially
+00:10:56.760 if it's a low float I no matter where I
+00:10:58.440 am in the world need to know that that
+00:10:59.639 stock was traded because it might impact
+00:11:01.120 the price before I buy or sell
+00:11:03.279 respectively
+00:11:04.880 right um in the case of a URL shorten or
+00:11:07.440 do we need that strong read after write
+00:11:08.959 consistency well you can imagine that
+00:11:10.760 somebody gives us a long URL we shorten
+00:11:12.839 it we give them the short URL back does
+00:11:15.040 anybody who then hits that short URL
+00:11:17.519 immediately need to be able to be
+00:11:20.079 redirected we could say no and the
+00:11:22.800 reason we could say no is because first
+00:11:24.720 of all there's some time that it takes
+00:11:26.720 for a user to share a short URL with
+00:11:28.480 other users and for to start being used
+00:11:30.399 and that gives us time to be eventually
+00:11:32.160 consistent if for some reason somebody
+00:11:34.240 was wicked quick a there are ways that
+00:11:36.160 we can handle that by making sure
+00:11:37.360 they're redirected to that same original
+00:11:38.839 node but B if they didn't get redirected
+00:11:41.800 in that first couple seconds up to even
+00:11:43.560 a minute who cares right like we can
+00:11:45.639 show them a little error that just says
+00:11:46.959 like we're still saving this in the
+00:11:48.959 system try again in a minute and no big
+00:11:51.560 deal things would the world wouldn't end
+00:11:53.560 two people wouldn't show up to the
+00:11:54.639 Taylor Swift show fighting for the same
+00:11:56.079 seat right so because that's the case
+00:11:58.920 because we we don't need strong
+00:11:59.839 consistency we're instead going to go
+00:12:01.760 for availability and so we're going to
+00:12:03.760 say high
+00:12:05.200 availability uh and we don't need strong
+00:12:07.240 consistency wow I don't know how to
+00:12:08.440 spell that we don't need strong
+00:12:09.959 consistency instead uh we can handle
+00:12:12.839 eventual consistency so
+00:12:15.000 event
+00:12:17.760 eventual eventual
+00:12:20.279 consistency for URL
+00:12:23.199 shortening right
+00:12:25.720 cool okay um so that's our
+00:12:28.440 non-functional require the last thing
+00:12:29.959 that I'm going to say here is that many
+00:12:31.720 guides will instruct you at this point
+00:12:33.120 into go to back of the envelope
+00:12:34.480 estimations so you come in here you do
+00:12:36.360 back of the envelope estimations you
+00:12:38.399 would end up talking about things like
+00:12:39.800 scale estimations latency estimations
+00:12:42.360 like total storage estimations whatever
+00:12:45.040 this is fine you can do it but I'm going
+00:12:47.160 to suggest that it's
+00:12:48.560 useless um estimations and calculations
+00:12:51.839 while doing system design is very
+00:12:53.720 important but doing it upfront like this
+00:12:57.000 I find as an interviewer is almost
+00:12:59.240 always useless candidates will do some
+00:13:01.240 basic math About Storage latency Etc and
+00:13:03.320 then they'll look at me and they'll go
+00:13:04.760 okay yeah so it's going to be a big
+00:13:06.040 distributed system and it's like we kind
+00:13:08.320 of knew that already didn't we there was
+00:13:09.760 100 million daily active users and a
+00:13:11.240 billion URLs you're not you're not
+00:13:12.920 telling them anything new and you're not
+00:13:14.480 going to change your design based on
+00:13:15.800 that information you are always going to
+00:13:17.079 do a distributed
+00:13:18.480 system and so what I argue is that doing
+00:13:21.480 math for the sake of doing math is not
+00:13:23.760 useful instead you should tell your
+00:13:25.600 interviewer I'd rather not do math up
+00:13:27.360 front and I'm going to do it during my
+00:13:28.639 high level design or my deep Dives if I
+00:13:31.199 need it to make a decision and so the
+00:13:33.680 key here is that you're going to do
+00:13:35.079 calculations when the result of those
+00:13:36.639 calculations will directly inform a
+00:13:39.440 direction or decision that you're going
+00:13:40.639 to take in your design and doing it up
+00:13:42.839 front like this in my experience does
+00:13:44.920 not satisfy
+00:13:49.279 that next up we go into the core
+00:13:51.480 entities of the system now the core
+00:13:54.680 entities as I mentioned these can be
+00:13:56.199 thought of as basically the tables that
+00:13:58.720 you're going to have in your database
+00:14:00.240 this is the entities that your system is
+00:14:02.519 persisting storing in the database and
+00:14:04.839 exchanging via the apis right and so
+00:14:08.600 core entities as I suggest as we
+00:14:10.600 suggested hello interview you start by
+00:14:12.839 just listing off these entities don't
+00:14:15.120 worry about the full data model yet
+00:14:16.880 you're going to get into that later I
+00:14:18.519 would communicate this proactively with
+00:14:19.959 your interviewer I would say I'm not
+00:14:21.399 going to do the full data model just yet
+00:14:23.079 instead I'm going to list off these core
+00:14:24.279 entities and as I get into my high level
+00:14:25.880 design I'll be more explicit about the
+00:14:27.440 fields or columns for each of them
+00:14:29.959 but in our case what do we know that we
+00:14:31.399 have we have an original URL we have a
+00:14:33.720 short URL and then like we have a user
+00:14:36.120 who creates them these are the entities
+00:14:37.839 in our system pretty straightforward and
+00:14:40.320 the reality is that this system is so
+00:14:42.040 simple that you could outline the data
+00:14:44.279 model here if you wanted to you probably
+00:14:45.920 know it at this point the reason that we
+00:14:47.519 don't yet is because for more
+00:14:48.800 complicated systems it's often times too
+00:14:51.000 early and we haven't had a chance to
+00:14:52.720 think through our API and all of the
+00:14:55.120 requirements that that would have us
+00:14:56.959 understand what the full data model
+00:14:57.920 would be but in this case it might be
+00:14:59.680 fine I'm going to go with this and and
+00:15:02.279 uh this is a good enough core entities
+00:15:03.839 for now which takes us then to our API
+00:15:07.720 the
+00:15:08.720 API is where again we Define that
+00:15:11.279 contract between our client or our users
+00:15:14.440 and our system and the way that I
+00:15:16.680 suggest you go after the API is very
+00:15:18.839 methodically you're just going to come
+00:15:20.519 up here to your functional requirements
+00:15:22.480 and in most cases it's a one toone
+00:15:24.880 mapping between a functional requirement
+00:15:26.959 and an API not always sometimes you have
+00:15:28.680 like two or three API endpoints for each
+00:15:30.639 requirements or maybe uh you don't even
+00:15:32.600 have an API endpoint for a requirement
+00:15:34.519 but you should come up to this list and
+00:15:35.959 you should say the first thing I need to
+00:15:37.560 do is users should be able to create a
+00:15:39.040 short URL from a long URL okay let me
+00:15:41.839 make sure that I have an API that
+00:15:43.480 supports that so in doing so the first
+00:15:46.839 API that we need is to be able to
+00:15:48.480 shorten a URL and so this can be a post
+00:15:51.160 Endo to some URLs resource and it's
+00:15:54.360 going to return a short URL we're just
+00:15:56.880 going to reference here our core entity
+00:15:59.440 right it's going to return a short URL
+00:16:01.880 and the body here is going to be what
+00:16:04.839 namely it'll have that original URL
+00:16:06.720 again referencing that core entity uh it
+00:16:09.360 could have that optional custom Alias
+00:16:11.759 I'm going to use question mark in order
+00:16:13.440 to uh indicate the optionality there and
+00:16:16.839 then we can also have optionally that
+00:16:18.360 expiration time so that expiration time
+00:16:21.360 right and so there's our first URL our
+00:16:24.519 first API endpoint which is going to
+00:16:26.240 allow us to take an original URL and
+00:16:28.680 return a short
+00:16:30.319 URL uh when you're doing these system
+00:16:32.360 design interviews you often times will
+00:16:34.240 use rest apis though not always uh when
+00:16:37.759 you are using rest apis a couple things
+00:16:39.680 to think about you want to make sure
+00:16:40.839 that you get your verb correct here you
+00:16:43.279 have post put patch get delete Etc most
+00:16:47.480 often you're just going to use post when
+00:16:49.079 you're creating a new resource put or
+00:16:51.319 patch when you're updating a resource
+00:16:53.279 delete of course if you're deleting a
+00:16:54.600 resource and then get if you are quite
+00:16:57.199 obviously getting or fetching a resource
+00:16:59.680 so make sure you have those down and
+00:17:01.560 then when it comes to these paths you
+00:17:03.839 you typically are going for a plural
+00:17:06.520 noun and so to be honest with you as an
+00:17:08.679 interviewer I don't care about all of
+00:17:10.199 this I think this is like kind of silly
+00:17:12.039 semantics that are easy to to change
+00:17:15.199 figure out they're not the most
+00:17:16.160 interesting part of any design but
+00:17:18.079 especially at the lower levels you'll
+00:17:19.439 have like what I'll call restful API
+00:17:22.039 zealots interviewers who really care
+00:17:23.959 about this and so I just want you to be
+00:17:25.400 aware and considering things
+00:17:27.400 appropriately okay so that's that first
+00:17:29.480 API endpoint right we just satisfied
+00:17:31.000 that first functional requirement the
+00:17:32.960 second one is user should be able to be
+00:17:34.720 redirected to the original URL from the
+00:17:36.480 short code okay so we need to handle an
+00:17:39.160 API endpoint for redirection and so how
+00:17:41.880 is this going to work well we're going
+00:17:43.160 to have some get endpoint and it's going
+00:17:45.600 to go to slash like our short code or to
+00:17:49.360 use our uh our core entities it's just
+00:17:51.320 going to go to our short URL and then
+00:17:53.640 it's going to return
+00:17:55.320 a redirect to our original URL
+00:18:00.240 right so that's pretty straightforward
+00:18:02.799 now in case this isn't obvious the way
+00:18:05.039 that these systems work of course is
+00:18:06.320 that when you run this git and we'll get
+00:18:07.840 into this in a in a moment when you run
+00:18:09.880 this git you're hitting our server the
+00:18:12.120 server that we own our URL shortener
+00:18:14.320 with that short URL and that short code
+00:18:17.880 uh and then we can take that code figure
+00:18:19.159 out what we need to do with it we'll get
+00:18:20.440 into that later and then and then issue
+00:18:22.000 the redirection but that's how this ends
+00:18:23.960 up working so here are our API endpoints
+00:18:26.760 super simple we double check we have an
+00:18:29.039 API endpoint for each of our functional
+00:18:30.720 requirements these fully satisfy those
+00:18:32.520 requirements we feel like we're in a
+00:18:33.640 good spot and we're ready to move on to
+00:18:35.679 the next
+00:18:39.080 section so at this point we've done all
+00:18:41.080 the setup work we have a really clear
+00:18:43.200 understanding of the system that we need
+00:18:44.320 to design we know the core entities that
+00:18:46.640 are persisted and exchanged and we've
+00:18:48.799 defined our contract with our back end
+00:18:51.080 between our client and our server and so
+00:18:53.679 the next step is to come over here and
+00:18:55.880 do our highle Design This is where
+00:18:57.360 things are more fun we get to go to the
+00:18:58.520 Wi board we get to draw and our primary
+00:19:00.960 goal again is to just satisfy these core
+00:19:02.720 functional requirements so we're not
+00:19:04.360 going to worry about scale or meeting
+00:19:05.960 latency or uring uniqueness or
+00:19:07.640 availability or any of these things yet
+00:19:09.000 we're going to do that later we're just
+00:19:10.360 going to get a simple design down that
+00:19:11.840 works and by following this framework
+00:19:13.919 our mind is just working linearly so
+00:19:15.559 that even if we've uh if we're g excuse
+00:19:18.039 me if we're given a problem that we
+00:19:19.280 haven't seen before we can just build
+00:19:21.200 the design up step by step by step okay
+00:19:24.880 so when it comes to the high level
+00:19:25.919 design here's how I recommend you do it
+00:19:28.000 you come over to each of the apis and
+00:19:30.640 you start with the API and you draw out
+00:19:32.960 the system that's necessary in order to
+00:19:34.400 satisfy that API this is equivalent to
+00:19:37.240 going step by step through each of the
+00:19:38.799 functional requirements as your note but
+00:19:41.200 by doing it uh for the for the apis you
+00:19:43.600 can be really clear about the data flow
+00:19:45.440 and about what needs uh to be the input
+00:19:47.960 and the output of each request and how
+00:19:50.520 the system of transforms those
+00:19:52.600 appropriately if you will so let's come
+00:19:54.919 over here and let's let's draw this out
+00:19:56.760 I'm going to start simple and I I have a
+00:19:58.919 given client this client here is just
+00:20:01.120 maybe like the website right pretty
+00:20:03.640 simple um and then I also have a primary
+00:20:06.960 server so this is going to be the
+00:20:08.559 primary compute resource in my back
+00:20:12.080 end and then I'm also going to add a
+00:20:15.679 database I'm going to add a database and
+00:20:18.520 so this is a very classic design pattern
+00:20:21.799 just a client server database
+00:20:24.840 relationship the client is going to make
+00:20:27.000 a request to your backend server your
+00:20:28.440 back in server or your server is going
+00:20:30.000 to do something persist it in your
+00:20:31.720 database and then return it back to a
+00:20:33.320 client and so in our case what we're
+00:20:35.400 considering right now is what happens
+00:20:36.840 when a user tries to shorten a URL
+00:20:39.440 they're going to make a post request to/
+00:20:41.320 URLs and then we're going to return to
+00:20:43.400 them a short URL well how are we going
+00:20:45.720 to do that we're going to do that
+00:20:47.559 because they're going to make that API
+00:20:49.120 request here that API request is going
+00:20:51.640 to be you know get short
+00:20:55.360 URL it's going to hit our primary server
+00:20:58.159 our Prim primary server is going to have
+00:20:59.679 some magic black box that creates short
+00:21:03.080 URL we'll talk about how it does that
+00:21:04.559 later we'll stay abstract for now so
+00:21:06.960 it's going to generate that short code
+00:21:08.840 and then it's going to come over here
+00:21:09.919 and it's going to save it to the
+00:21:11.000 database I'll make that a two-way Arrow
+00:21:13.679 this one should be
+00:21:14.840 too cool so it's going to come over here
+00:21:17.520 it's going to save it to our database
+00:21:19.120 and then return it back to the client
+00:21:21.000 well what is it saving to our database
+00:21:22.480 well we probably now Define some data
+00:21:24.720 models instead of having separate
+00:21:26.960 entities or separate table for the short
+00:21:29.120 URL and the long URL which we could do
+00:21:31.400 I'm instead going to combine them in
+00:21:32.960 this case into one because of how simple
+00:21:34.480 it is and this is going to make more
+00:21:35.640 sense so I'm going to have a URL table
+00:21:38.400 and this URL table is going to have the
+00:21:40.559 short URL and it's going to have the
+00:21:43.159 long or original URL it's probably going
+00:21:45.600 to have the creation time and the user
+00:21:48.120 ID a forwarding key to the user that
+00:21:50.000 ended up creating this and then
+00:21:51.799 subsequently I'm going to have a user
+00:21:53.120 with a user ID I'm not going to outline
+00:21:55.600 anything more of course a you user table
+00:21:57.360 will have a uh an email a password hash
+00:22:00.919 uh salt all of these different things
+00:22:02.480 who cares I see so many candidates get
+00:22:04.520 distracted by those things in an
+00:22:05.840 interview we're focus on the core
+00:22:07.400 functionality here all of that is
+00:22:09.120 auxiliary and so maybe I just do this
+00:22:11.200 you know of course all the additional
+00:22:12.799 metadata cool and so we take a look at
+00:22:15.880 that first API endpoint that we had post
+00:22:17.760 to URLs return a short URL here's how
+00:22:20.360 it's going to work the client is going
+00:22:22.240 to post to our primary server it'll
+00:22:23.720 create a short URL it'll store that in
+00:22:25.799 the database as a mapping between the
+00:22:27.360 short the long UR URL at the creation
+00:22:29.279 time and with the user ID and it'll
+00:22:31.120 return that short URL back to the client
+00:22:33.919 easy we got it first one down now the
+00:22:37.400 second one is that the user needs to get
+00:22:39.320 that short URL and be redirected to the
+00:22:42.000 original URL and so how are we going to
+00:22:44.279 do that well now we have an additional
+00:22:46.440 thing here we have this like uh you know
+00:22:50.559 redirect which takes in the short this
+00:22:53.640 one took in the
+00:22:55.400 long and so that's going to come from
+00:22:57.320 our client it's going to hit our par Ary
+00:22:58.760 server our primary server is going to
+00:23:01.880 look up long from short all right so
+00:23:04.840 it's going to go over to our database
+00:23:06.640 it's going to query it based on that
+00:23:08.360 short URL I'm probably going to want to
+00:23:10.279 make that our primary key it's going to
+00:23:12.360 query based on the short URL and then
+00:23:14.080 it's going to return the long URL back
+00:23:16.200 to the user and it's going to return
+00:23:18.360 this back to the user with importantly a
+00:23:22.159 302
+00:23:24.360 redirect and so a 302 redirect is just
+00:23:27.480 the http status code which tells the
+00:23:30.679 browser I want you to take this URL and
+00:23:33.960 automatically navigate to it I want you
+00:23:36.159 to automatically navigate to this URL
+00:23:39.559 and when it comes to redirects we have
+00:23:41.440 two options we have a 302 redirect and
+00:23:44.720 we have a 301 redirect these are both
+00:23:47.159 different https status codes and so in
+00:23:50.559 the case of a 301 redirect this is a
+00:23:54.080 permanent redirect and what it basically
+00:23:56.760 means is that the C uh the your clients
+00:23:59.600 your browser DNS servers potentially
+00:24:01.919 they can cash this redirect and in the
+00:24:04.240 future they might not even need to go to
+00:24:05.720 your service they're just going to
+00:24:07.279 redirect it immediately based on the
+00:24:10.000 cach in the 302 case this is temporary
+00:24:14.120 and so it's never going to be cashed
+00:24:16.039 they're always going to come to us first
+00:24:17.960 we're going to look it up and then we're
+00:24:19.159 going to send it back and so there's a
+00:24:21.320 conversation that you would have with
+00:24:22.320 your interviewer at this point
+00:24:23.440 potentially about whether 302 or 301
+00:24:25.520 makes more sense now it depends on your
+00:24:28.799 requirements I suppose in our case we
+00:24:31.360 don't care about analytics which is what
+00:24:33.039 would make the 302 the right answer here
+00:24:35.960 because in the case where you have
+00:24:37.120 analytics you can show users how often
+00:24:39.360 their short URL is being queried um you
+00:24:42.200 would want to make sure that it always
+00:24:43.399 comes to your server because then you
+00:24:45.279 can log and you have an understanding
+00:24:46.880 that this redirect was was requested in
+00:24:49.559 the 301 case you're not going to get
+00:24:52.000 that you're not going to be afforded
+00:24:53.360 that ability it's not going to hit your
+00:24:54.480 server so you're not going to be able to
+00:24:55.440 log anything for future analytics now
+00:24:57.919 this per redirect would be better if we
+00:24:59.480 were worried about compute cost if we
+00:25:01.919 were worried potentially about not
+00:25:03.279 having to scale this server in the
+00:25:05.039 future then uh by having it be permanent
+00:25:08.480 it's handled by caches elsewhere and may
+00:25:10.520 never even hit our backend service in
+00:25:11.880 the first place that's pretty nice and
+00:25:13.760 so there's pros and cons here typically
+00:25:16.240 speaking you want to go with the 302
+00:25:18.240 even the cost to uh you know how many
+00:25:21.679 servers you may need because it allows
+00:25:24.799 you to understand if things are working
+00:25:27.240 even if you're not showing users
+00:25:28.840 analytics even if that's not a core
+00:25:30.520 requirement you would be tracking that
+00:25:32.679 internally as a as a platform as a
+00:25:35.440 product and if you saw things drop off a
+00:25:37.520 cliff there well you would know
+00:25:38.480 something broke probably broke on the
+00:25:40.320 client and we're not getting these
+00:25:41.360 requests anymore and so by making it a
+00:25:43.480 301 you lose that visibility and this is
+00:25:45.880 the argument that I would make in an
+00:25:47.440 interview uh and why I would decide on a
+00:25:49.679 302 redirect here and so the server will
+00:25:53.200 respond with a 302 redirect with the uh
+00:25:55.720 original URL and the client will then
+00:25:57.880 navigate that original URL and they'll
+00:25:59.600 be viewing that original website awesome
+00:26:03.080 so super simple we went through each of
+00:26:05.200 our apis we now have a really high level
+00:26:07.720 design that satisfies both of our core
+00:26:10.480 functional requirements I suppose with
+00:26:12.960 that being said as I just went back here
+00:26:14.600 and checked as you should do too I noted
+00:26:17.159 that we actually didn't discuss two
+00:26:18.440 parts of that functional requirement and
+00:26:20.240 that's the custom Alias the expiration
+00:26:21.919 so let me come back and amend
+00:26:24.080 appropriately uh we're going to add here
+00:26:27.039 you know that short URL slash custom
+00:26:29.399 Alias this could be either of those
+00:26:31.200 things if they provided a custom Alias
+00:26:33.799 and then we're also going to add that
+00:26:35.120 optional expiration time so an
+00:26:37.320 expiration time here and so now what a
+00:26:40.720 user would do if they gave us a short uh
+00:26:43.000 if they wanted to get a short URL and
+00:26:44.360 they gave us a long URL and then they
+00:26:45.720 also gave us a custom Alias we would
+00:26:47.880 need to First Look up in the database
+00:26:49.440 does that custom Alias already exist if
+00:26:51.799 no add a new row where the short URL is
+00:26:54.480 the custom Alias and return that back to
+00:26:56.480 the user easy and then in the case of
+00:26:59.320 expiration time being provided we'll
+00:27:01.159 make sure that we add it here and then
+00:27:03.200 on the redirect call when we come to
+00:27:05.480 look up our long URL based on the short
+00:27:07.200 URL we'll also check the expiration time
+00:27:09.919 is the current time greater than the
+00:27:11.360 expiration time if so return an error
+00:27:14.360 instead of a 302
+00:27:16.200 redirect okay with that being said now
+00:27:19.279 we have a highle design that satisfies
+00:27:20.919 each of our functional requirements and
+00:27:22.840 it's time to go deep in order to expand
+00:27:25.240 this design to support each of our
+00:27:26.960 non-functional requirements
+00:27:31.320 so as we move on to the Deep Dives we're
+00:27:32.960 going to come over to our non-functional
+00:27:34.240 requirements and we're just going to go
+00:27:35.520 one by one through them evolving the
+00:27:37.559 simple highle design such that it meets
+00:27:40.480 each of these non-functional
+00:27:41.720 requirements as well as the functional
+00:27:43.360 requirements that are already
+00:27:45.240 satisfies and now if you all will allow
+00:27:47.480 me I'm actually going to take some
+00:27:48.399 Liberties here and I'm going to start
+00:27:49.519 off with the third one Ure uniqueness of
+00:27:51.559 short codes and the reason I'm going to
+00:27:53.600 start off with that one is because
+00:27:54.880 you'll realize that in our highle design
+00:27:57.159 we intentionally overlooked kind of the
+00:27:59.760 core of this problem we black booxed
+00:28:02.679 this create a short URL that's the hard
+00:28:05.120 part that's the interesting part of a
+00:28:06.480 URL shortener and we just handwaved it
+00:28:09.360 now we did that intentionally the reason
+00:28:11.159 we did it intentionally is that a common
+00:28:13.039 mistake I see candidates make is that
+00:28:15.240 they go too deep On Any Given part of
+00:28:17.039 the design too early and then all of a
+00:28:19.080 sudden time runs out and they didn't
+00:28:21.120 even get a chance to satisfy all of the
+00:28:22.960 functional requirements that features
+00:28:24.399 their system this is a mistake and so
+00:28:27.000 you want to remain pretty high level
+00:28:28.320 make sure that you have the base down
+00:28:29.519 make sure you satisfy those functional
+00:28:30.880 requirements and then come back and go
+00:28:32.559 deeper and that's exactly what we're
+00:28:34.279 doing here so I would have told my
+00:28:35.720 interviewer I would have said to my
+00:28:36.880 interviewer I'm blackboxing this for now
+00:28:38.640 but I'm going to come back to it and now
+00:28:40.919 let's do exactly that so what do we need
+00:28:44.080 we need two things when it comes to
+00:28:45.399 creating a short URL well maybe we need
+00:28:47.799 a couple of things we need the creation
+00:28:49.760 to be fast that's reasonable we need it
+00:28:52.200 to be unique and we need it to be short
+00:28:55.080 those are the three things that we care
+00:28:56.320 about how short well we could ask our
+00:28:58.559 interviewer or we could guess but
+00:29:00.440 typically we're talking in like this 5
+00:29:03.399 to 7ish character range right so 5 to
+00:29:07.559 seven characters maybe is short enough
+00:29:11.039 and so let's talk about some options
+00:29:12.720 that we have here and in interview you
+00:29:14.640 do do exactly this you'd kind of work
+00:29:16.240 your way up building from the most
+00:29:17.840 simple solution to something more
+00:29:19.399 complex certainly if time allows so the
+00:29:21.919 first thing that we could do is that we
+00:29:23.039 could just take a prefix of the long URL
+00:29:25.360 or the input URL so any given long UR
+00:29:28.360 that comes in let's just chop off the
+00:29:29.919 first five to seven characters stick
+00:29:32.279 that then as our short URL or our short
+00:29:34.120 Alias or excuse me our short code uh and
+00:29:36.919 then append that to the end of our wwwb
+00:29:39.200 bitly.com that prefix right now this is
+00:29:42.919 obviously bad why is it obviously bad
+00:29:45.440 well because there are tons of URLs that
+00:29:47.240 share the same prefix what about every
+00:29:49.440 single URL at www twitter.com or wwwf
+00:29:53.440 facebook.com or any of these different
+00:29:55.600 common URLs they're all going to share
+00:29:57.120 the same prefix and now we don't have a
+00:29:59.159 one to one mapping between short and
+00:30:00.640 long URL we have a one to many mapping
+00:30:03.360 this means that if you give us one of
+00:30:04.559 those prefixed short URLs we have no
+00:30:07.200 idea which one of the thousands hundreds
+00:30:09.159 of thousands of long URLs it actually
+00:30:10.760 maps to so it's a terrible idea don't do
+00:30:13.679 it the second thing that we could do is
+00:30:16.000 we could use a random number generator
+00:30:18.640 this is a much better idea so a random
+00:30:21.240 oop so this is a random number
+00:30:24.279 generator and so we ask oursel like how
+00:30:27.039 large can can this number be how large
+00:30:29.640 should this number be how large would
+00:30:30.960 this number need to be well if we come
+00:30:33.120 back over here we're reminded of our
+00:30:34.480 scale that we're going to have a billion
+00:30:36.399 URLs and so this means that this random
+00:30:38.679 number needs to be at least between one
+00:30:41.200 and a billion of course if it's just
+00:30:43.559 between one and a billion our Collision
+00:30:44.960 rate is going to be really high so we
+00:30:46.360 might want it to be higher than that but
+00:30:47.840 it needs to be at least that 1 billion
+00:30:51.240 is 10 to the N or 10
+00:30:54.200 characters right 10 characters that's
+00:30:57.600 more than our 5 to S that's too many
+00:31:00.080 characters and so we'll need to do
+00:31:02.320 something a little bit more
+00:31:03.279 sophisticated in order to compact that
+00:31:06.159 we can't just depend 10 characters to
+00:31:08.120 the end of this thing and we need at
+00:31:09.960 least 10 remember we probably need 11 12
+00:31:12.559 13 in order to make sure they Collision
+00:31:14.240 rate is lower but here's what we can do
+00:31:17.279 we can do something called base 62
+00:31:19.480 encoding and so base 62 encoding is
+00:31:22.240 basically can be thought of like a
+00:31:23.399 numbering system like zero all the way
+00:31:25.960 to to you know 1 2 3 4 5 6 7 eight and
+00:31:28.279 all the way up but instead we're going
+00:31:30.200 to incorporate the alphabet and so the
+00:31:32.159 way that the numbering works is that we
+00:31:33.519 go from 0 to 9 and then we go from A to
+00:31:36.919 Z and then we go from A to Z
+00:31:39.480 lowercase and so what this means is that
+00:31:41.720 10 is actually a 11 is actually
+00:31:45.360 uppercase B and it means that any given
+00:31:47.960 character can now encode uh 62 options
+00:31:52.639 as opposed to just n or 10 like in the
+00:31:56.039 traditional base 10 encoding
+00:31:58.480 right so we can take a large number and
+00:32:01.519 then base 62 and code it and so now how
+00:32:04.679 large would we want this to be well if
+00:32:07.080 we had for example a code that was
+00:32:09.919 length six let's go right between r five
+00:32:11.960 and R seven then it would be 62 to the 6
+00:32:15.720 possible combinations 62 to the 6 is 56
+00:32:21.080 billion about and so that's pretty good
+00:32:24.039 we have like a decent amount of space
+00:32:25.600 there we can randomly choose a number
+00:32:27.440 between 0 and 56 billion we can base 62
+00:32:30.480 encode it and it's going to be a short
+00:32:32.360 code it'll be of length six in base 62
+00:32:34.799 encoding uh but what about our chance of
+00:32:36.919 collision what is the chance that a
+00:32:38.840 random number between 0 and 56 billion
+00:32:41.840 when calculated a billion times ends up
+00:32:45.120 colliding well you might be surprised by
+00:32:47.720 this but the Collision probability is
+00:32:49.639 actually really high uh this is often
+00:32:52.200 times referred to as something called
+00:32:53.480 the birthday Paradox I'll write that
+00:32:55.000 down in case anybody's interested in
+00:32:57.000 reading about it so this is the birthday
+00:32:58.960 Paradox and it's this counterintuitive
+00:33:01.200 probability problem that states that
+00:33:02.799 there's actually a 50% chance that two
+00:33:05.960 people in a group of only 23 people have
+00:33:09.240 the same birthday I'll say that again
+00:33:11.440 you can see why that's so
+00:33:12.279 counterintuitive if you have 23 people
+00:33:14.000 in a room there's a greater than 50%
+00:33:15.799 chance that at least two of them share a
+00:33:17.200 birthday despite there being 365 days in
+00:33:19.919 a year now the formula that is used to
+00:33:23.039 calculate that can be used to calculate
+00:33:25.760 um the the probability of a collision
+00:33:28.320 on 56 billion uh randomly generated
+00:33:31.120 things as well and you wouldn't need to
+00:33:33.480 know this in a system design interview
+00:33:34.880 but just because I thought it was
+00:33:35.880 interesting I went about and I did this
+00:33:38.000 and it turns out that out of 8 billion
+00:33:40.720 or excuse me 1 billion random
+00:33:42.600 Generations there's an estimated 880k
+00:33:46.039 collisions that would happen here so
+00:33:49.240 that's a lot that's like a decent number
+00:33:51.159 of of collisions right it's depending on
+00:33:55.240 how you define a lot 880k over billion
+00:33:58.120 might not be that many but it's it's
+00:34:00.039 certainly a large enough number that we
+00:34:01.519 would end up with more than a one to one
+00:34:03.080 mapping and so how do we address this
+00:34:06.120 well one thing that we can certainly do
+00:34:07.760 is that we can take this approach we can
+00:34:10.239 random number generator base 62 encode
+00:34:13.599 um yes there might be a collision but
+00:34:16.199 what we'll do is before saving it to the
+00:34:17.800 database we'll come over to our database
+00:34:19.280 and we'll read the short URL see if any
+00:34:21.879 exists like this already and only if
+00:34:23.918 they don't exist write to it update it
+00:34:27.000 so we just int roduced another read
+00:34:28.719 instead of calculate the short URL and
+00:34:30.359 save to the database it's calculate the
+00:34:31.800 short URL check and then save to the
+00:34:34.440 database right so that's totally
+00:34:36.800 possible so basically we just need to
+00:34:41.239 check for
+00:34:43.119 Collision first is that a big deal not
+00:34:46.239 really it's an extra read uh there's
+00:34:48.239 some consequences to that but no it's
+00:34:50.280 not a big deal that's one option another
+00:34:53.399 option is that we could hash the long
+00:34:55.480 URL this is a a common one that I see a
+00:34:57.880 lot online and the candidates often
+00:34:59.839 raise so they can take that long URL and
+00:35:02.560 they can call some hash function and so
+00:35:04.599 maybe that hash function is like md5
+00:35:06.960 something cheaper like murmur hash
+00:35:08.680 something like shot 256
+00:35:10.040 cryptographically secure whatever but
+00:35:12.119 you get a long URL and then you would
+00:35:14.000 end up getting some thing some output
+00:35:17.520 right some hash some hash and you would
+00:35:20.119 take that hash and you would base 62 and
+00:35:22.599 code that hash again right and then you
+00:35:25.160 would slice it to take just those first
+00:35:27.359 six characters so that would be the
+00:35:29.520 operation that you would do there now
+00:35:32.079 what you end up with is six characters
+00:35:34.720 of Base 62 encoded so you end up with
+00:35:37.359 the same thing that we ended up with the
+00:35:38.520 random number generator and because of
+00:35:40.560 how hash functions work right a hash
+00:35:43.320 function despite it being deterministic
+00:35:46.079 has that waterfall effect such that if
+00:35:47.960 you change just one bit on the input the
+00:35:50.319 whole hash should change significantly
+00:35:52.640 basically increasing the randomness of
+00:35:54.960 the hash that's generated and that
+00:35:56.800 property means that the the output is
+00:35:58.200 actually just exactly the same as the
+00:35:59.599 random number generator it is literally
+00:36:01.160 the same thing there sure there's 56
+00:36:03.400 billion chance uh 56 billion possible
+00:36:05.800 combinations the chance of collision is
+00:36:08.200 exactly the same so same as above again
+00:36:11.440 this would totally work it would work
+00:36:13.599 exactly the same we just need to make
+00:36:15.119 sure that we check the database first
+00:36:17.800 can we avoid checking the database is
+00:36:19.560 the question the answer is yes is it a
+00:36:22.720 better approach the answer is maybe yes
+00:36:25.880 um but what we could do is we could use
+00:36:27.160 a count
+00:36:28.640 like why introduce this Randomness in
+00:36:30.280 the first place why doesn't the first
+00:36:31.880 person who comes to us just have short
+00:36:33.800 code one the second person have short
+00:36:35.560 code two the third person have short
+00:36:37.640 code three and so on and so we can just
+00:36:40.000 have incrementing a counter we can just
+00:36:42.920 increment counter for each new short URL
+00:36:45.200 or each new long URL that needs to be
+00:36:46.599 turned into a short code and then again
+00:36:48.520 we'll base 62 encoder we'll always do
+00:36:50.520 that so we can kind of make this space
+00:36:52.760 more Compact and so this allows us to
+00:36:55.680 get up to that 56 billion with six
+00:36:58.839 things but we're guaranteed to never
+00:37:00.800 have a collision because we're always
+00:37:02.720 just linearly increasing there a
+00:37:05.079 sequential nature to it right we're
+00:37:06.480 going to go zero all the way to 9 and
+00:37:08.760 then to capital A and then to capital B
+00:37:11.079 all the way through until you know
+00:37:12.680 eventually we have six characters of
+00:37:14.240 that base 62 encoding and so this is
+00:37:17.560 great and maybe what we can do here just
+00:37:19.599 to visualize this is I'm going to expand
+00:37:22.760 this guy up like
+00:37:25.680 this and we can add in here like some
+00:37:29.920 counter so there's some counter in here
+00:37:32.240 which we're just always going to go grab
+00:37:33.680 the next count what's next right
+00:37:35.800 grabbing a count is fast it guarantees
+00:37:38.040 that it's Unique and by base 62 encoding
+00:37:39.839 it we guarantee that it's short it's not
+00:37:42.079 without its flaws though so there's a
+00:37:44.760 predictability which is bad for
+00:37:47.880 security and so what this basically
+00:37:49.839 means is that anyone who wants to know
+00:37:52.040 our short URLs can uh they can easily
+00:37:56.079 know how to count and they can easily
+00:37:58.359 know how to base 62 encode and so not
+00:38:01.200 only could our competitors know how many
+00:38:02.760 URLs we've shortened by just continuing
+00:38:05.160 to call our service until they end up
+00:38:07.160 not getting a short URL that converts to
+00:38:08.760 a long URL anymore um but they also can
+00:38:12.040 just like scrape all of the long URLs
+00:38:14.000 that we have right by just calling the
+00:38:16.440 short URL with that new incremented code
+00:38:18.480 each time and so maybe this is a problem
+00:38:21.480 maybe it's not like this is a product
+00:38:22.800 decision we could say when users go to
+00:38:25.200 create a short URL like a warning
+00:38:26.839 warning
+00:38:28.040 like they these are not don't don't uh
+00:38:31.240 don't shorten private URLs right like
+00:38:34.359 we're not responsible for this that's
+00:38:35.760 one option there we can of course have
+00:38:37.720 rate limiting so that our competitors
+00:38:39.240 can't just come and like scrape and grab
+00:38:40.920 all of these URLs if they want to but we
+00:38:43.880 also could do something more
+00:38:44.920 sophisticated and that's just not let
+00:38:46.880 this become a problem in the first place
+00:38:48.880 by introducing something that's
+00:38:50.160 oftentimes called a by junctive function
+00:38:53.240 and so you don't need to know this again
+00:38:54.920 in a system design interview I think
+00:38:56.240 this is just interesting if you brought
+00:38:57.440 brought out these facts they'd probably
+00:38:58.599 be impressed but you don't need to know
+00:39:00.280 this bjective functions are functions
+00:39:02.400 that just issue a Ono one mapping and so
+00:39:05.040 there are libraries one of the most
+00:39:06.760 popular ones is squids dog you can look
+00:39:10.040 that up if you're interested and it
+00:39:11.720 takes a number and then it returns to a
+00:39:14.040 hash that looks exactly or a base 62
+00:39:16.160 encoded string that looks exactly like
+00:39:17.720 the short URLs you see on bit.ly and it
+00:39:20.400 can take that uh that number that you
+00:39:22.599 provided it and then one to one map it
+00:39:25.520 via some off obfuscation
+00:39:27.960 um so that you can no longer
+00:39:29.960 incrementally uh you know know how to
+00:39:32.800 get the next URL if you're if you're a
+00:39:34.319 competitor a hacker or anything like
+00:39:35.680 this so these bjective functions exist
+00:39:38.839 it's worth you looking up on your own
+00:39:40.079 I'm not going to go into more detail but
+00:39:41.319 that's one option there now the nice
+00:39:43.480 thing about this counter approach of
+00:39:44.560 course is that we don't need to do the
+00:39:45.520 read right we know that every single one
+00:39:47.599 of these is unique so now we get the
+00:39:49.280 counter we run our bjective function if
+00:39:51.200 we want to and then we go store that
+00:39:52.839 short code in the UR uh the short code
+00:39:54.920 in the URL table and we're to
+00:39:58.800 go um the last thing that I'll say here
+00:40:01.440 is that you're probably thinking to
+00:40:02.960 yourself oh no this isn't great why do
+00:40:04.760 you have a counter on a single server
+00:40:06.359 you're right we'll talk about it when we
+00:40:07.720 get to scale but for now here are your
+00:40:09.640 options in order to create a short code
+00:40:11.680 both two and three are totally realistic
+00:40:13.560 and you could provide these in an
+00:40:14.640 interview and it should totally be
+00:40:16.079 passing you'll just need to call out the
+00:40:17.760 need for that Collision check four is an
+00:40:20.720 option I think that I like in this case
+00:40:22.400 because it doesn't require that
+00:40:23.280 additional check but ultimately there's
+00:40:25.640 very small differences between them
+00:40:28.480 let's come back over and look at what
+00:40:29.720 non-functional requirement we should go
+00:40:31.400 into next so I'm going to go back in
+00:40:33.599 order now and I'm going to jump into low
+00:40:35.400 latency on redirects and so how can we
+00:40:38.000 make this redirect as low latency as
+00:40:40.119 possible right now what is it that we
+00:40:42.040 have to do while the client has to make
+00:40:44.160 a request to the primary server the
+00:40:46.240 primary server needs to look up that
+00:40:47.800 short URL in our URL table return the
+00:40:49.960 long URL and then that long URL needs to
+00:40:51.839 be returned to the client now the
+00:40:53.880 expensive part of all of this is this
+00:40:55.720 database lookup that's what's going to
+00:40:57.359 take the most time and now without any
+00:40:59.720 indexing and I'll explain indexing here
+00:41:01.480 in a moment but we would have 1 billion
+00:41:04.119 rows here and you would need to look at
+00:41:06.920 every single one of these rows and try
+00:41:09.160 to find the short URL that you're
+00:41:11.160 interested in so that you could return
+00:41:12.560 the long URL that it maps to that would
+00:41:14.920 obviously be like prohibitively
+00:41:16.240 expensive it would take a really long
+00:41:17.680 time to do and so the common thing that
+00:41:20.680 we do in databases in order to make
+00:41:22.560 these queries and these lookups more
+00:41:24.480 efficient is that we use something
+00:41:26.400 called index
+00:41:28.560 and so each URL table you can define a
+00:41:30.440 primary key this is true of most
+00:41:32.240 database systems now this primary key
+00:41:34.480 does a couple things one it enforces
+00:41:36.119 uniqueness which is good in our case
+00:41:37.800 certainly but it also ensures that an
+00:41:39.960 index is automatically built on that um
+00:41:44.119 on that column right on that primary key
+00:41:46.359 in the table and this index is typically
+00:41:49.760 kept in memory not always but you can
+00:41:51.440 think of it as this thing that's kept in
+00:41:53.200 memory that is a pointer to a location
+00:41:55.880 in disk and so so instead of us having
+00:41:57.839 to go to disk and seek and look for
+00:41:59.800 through all of the records in order to
+00:42:00.920 find the short URL we go to memory we
+00:42:03.200 look at this index and we ask it hey
+00:42:05.160 where is short URL 123 and it's going to
+00:42:07.440 tell us where in disk it is and we can
+00:42:09.000 just seek to disk or we can just go
+00:42:10.880 exactly to that place in disk find the
+00:42:12.680 long URL and return it makes it much
+00:42:14.680 much faster now when you add a primary
+00:42:17.440 key to something like postgress let's
+00:42:19.280 say that our database here was postgress
+00:42:21.720 then it uses a b tree as the index a b
+00:42:23.960 tree is like a self it is a
+00:42:25.119 self-balancing tree not like it is a s
+00:42:27.359 balancing tree and if you've been
+00:42:28.880 studying for your coding interviews you
+00:42:30.240 know plenty about trees um and so it's
+00:42:33.800 going to make this log in often times
+00:42:36.599 actually much quicker than that there
+00:42:37.839 are quite a few optimizations that exist
+00:42:39.440 in modern databases nowadays but that's
+00:42:42.480 what's going to happen and it's going to
+00:42:43.480 make this look up a lot faster now you
+00:42:45.720 do have an option of additionally
+00:42:47.599 creating a a a further index basically a
+00:42:50.319 second index on this short URL which can
+00:42:52.520 be a hash index and this would be 0 of
+00:42:54.880 one it would hash the short URL and and
+00:42:57.359 point directly to where the the the row
+00:42:59.760 is for us to get the long URL you could
+00:43:01.640 totally do this realistically you don't
+00:43:03.079 need to uh these be trees in postgress
+00:43:06.359 for example and all these modern data
+00:43:07.960 databases are so well optimized for
+00:43:10.319 these like equivalency lookups um that
+00:43:13.040 it would effectively be the same so not
+00:43:15.160 something to actually worry about um now
+00:43:18.599 we're still going to disk like we solved
+00:43:21.040 one part we don't have to go to disk and
+00:43:22.480 then read all the records in disk we're
+00:43:24.319 going to go to memory uh we're going to
+00:43:26.520 use that index to find where we need to
+00:43:28.000 go in disc but we still need to go to
+00:43:29.119 dis and then back realistically ssds are
+00:43:32.480 really fast nowadays uh so this this
+00:43:34.720 wouldn't probably be a problem but we
+00:43:37.440 could certainly make it faster by never
+00:43:39.880 having to go to dis in the first place
+00:43:41.200 and only ever going to memory and so
+00:43:44.240 while we're going to index first that
+00:43:45.640 was our first option we added that here
+00:43:47.119 index our second option is that we're
+00:43:49.079 going to add a cach and so we can use
+00:43:51.599 something like redis we could use MC D
+00:43:53.720 we can use any any inmemory cach here
+00:43:56.280 and what this cash is is it's just
+00:43:57.839 another server it's just another
+00:43:59.319 computer somewhere a separate instance a
+00:44:01.359 separate computer running and we're just
+00:44:03.160 going to utilize its memory we're going
+00:44:04.640 to utilize its Ram in order to be really
+00:44:06.839 quick here and so we're going to make
+00:44:09.119 this be a read through least recently
+00:44:12.640 used so read through least recently used
+00:44:16.160 cache what the heck does that mean right
+00:44:18.559 it means that any time that we want a
+00:44:20.319 short URL or we want a long URL for a
+00:44:23.000 short URL we're going to look in the
+00:44:24.839 cash and if there's a cash Miss
+00:44:27.599 then we're going to get it from the
+00:44:28.480 database update our cash and then return
+00:44:30.319 it that's the read through nature the
+00:44:32.559 least recently used is just saying if
+00:44:34.040 this cash gets full then our eviction
+00:44:36.200 policy is that anything that hasn't been
+00:44:37.440 touched lately kick it because the
+00:44:39.359 reality of a system like a URL shortener
+00:44:41.680 is that there are going to be some URLs
+00:44:42.839 that are really hot that they're getting
+00:44:43.800 called all the time but after a couple
+00:44:46.079 weeks months no one's going to use the
+00:44:48.359 old URLs anymore and so there's no
+00:44:50.319 reason for us to have them cash their
+00:44:51.680 lookup might take a little bit longer
+00:44:52.960 the first time who cares and so caches
+00:44:55.920 like this uh are oftentimes just key
+00:44:58.599 value pairs that's at least most common
+00:45:00.240 that's why I say oftentimes and so in
+00:45:02.280 our case the key is just going to be
+00:45:04.280 that short code or that short URL and
+00:45:06.839 then the value is just going to be the
+00:45:09.040 long URL and so this is going to be a
+00:45:10.839 really quick in memory of one lookup if
+00:45:12.520 we have a hit if we have a Miss then we
+00:45:14.440 have to come to our database look it up
+00:45:16.040 by the index re uh place it in the cache
+00:45:18.599 and then return it but the subsequent
+00:45:20.440 call will be over one again so that's
+00:45:22.960 what we can do there great option now
+00:45:25.920 there is one thing that we could do
+00:45:27.000 further I would actually stop here and
+00:45:28.480 argue that this is best for some of the
+00:45:30.040 reasons the arguments that I made when
+00:45:31.800 it pertains to the 302 versus 301 but we
+00:45:35.040 could also cash in a CDN a Content
+00:45:37.880 delivery Network what these are is like
+00:45:39.960 they're little Edge servers that are
+00:45:41.559 geographically located all over the
+00:45:42.839 world so you can imagine that our
+00:45:44.280 primary service maybe is sitting there
+00:45:45.640 in California and you're trying to
+00:45:47.760 request a short URL from China uh well
+00:45:51.280 there's a lot of latency required in
+00:45:53.040 making that request all the way from
+00:45:54.280 China over to California and so CDN are
+00:45:57.400 these servers that are all over the
+00:45:58.800 world and the user then would hit that
+00:46:01.200 server in China and we would have cashed
+00:46:03.920 on that CDN any responses to any of our
+00:46:08.119 for example um you know API requests to
+00:46:12.200 to to to redirect to a longer URL from a
+00:46:15.079 short URL there it is right uh so we
+00:46:17.559 could do that but the problem is it's
+00:46:19.400 going to hit that um CDN and then just
+00:46:21.960 redirect the user and it's never going
+00:46:23.400 to come to our primary server so there's
+00:46:25.119 the same issues we mentioned with the
+00:46:26.359 302 301 redirect which is that in the
+00:46:28.920 case of a 301 redirect it's a permanent
+00:46:30.760 redirect so it never hits our primary
+00:46:32.280 server and we don't know if our servic
+00:46:33.920 is well like working and so if we care
+00:46:36.839 about knowing if our service is working
+00:46:38.400 and logging and analytics then we
+00:46:40.119 wouldn't use a CDN if we don't care
+00:46:42.720 about that then we could use a CDN but
+00:46:44.920 we could also use a 301 redirect and
+00:46:47.160 then we'll just have less things come to
+00:46:48.400 our primary server and we have more
+00:46:49.640 caching at the edge both the users
+00:46:51.280 browsers dns's and CDN respectively so
+00:46:54.839 good discussion to have with your
+00:46:55.800 interview this is kind of the essence of
+00:46:57.319 these system design interviews there's
+00:46:58.800 no right or wrong answer it's trade-offs
+00:47:00.760 it's discussions it's weighing different
+00:47:03.040 uh priorities and so something important
+00:47:05.760 to note heading back over to our
+00:47:07.480 non-functional requirements we can head
+00:47:09.200 to our next one which is scale to
+00:47:10.640 support 100 million daily active users
+00:47:12.400 and 1 billion URLs and so when we talk
+00:47:14.920 about scale we want to work our way
+00:47:16.400 typically left to right of our system
+00:47:19.240 and see where all the bottlenecks would
+00:47:20.640 be all of our services here all of our
+00:47:22.800 components how do they need to scale so
+00:47:25.680 I'm going to move some things around a
+00:47:26.680 little little bit just so that we have
+00:47:28.000 room but the first thing that we're
+00:47:29.680 going to look at here is our primary
+00:47:31.040 server and so does our primary server
+00:47:33.640 even need to scale well we said that we
+00:47:35.960 had 100 million daily active users now
+00:47:38.839 let's just say that each one of those
+00:47:39.800 daily active users does one redirect
+00:47:41.839 this seems normal maybe it could be two
+00:47:43.760 maybe it could be three change your
+00:47:45.000 estimate but I'm going to say that the
+00:47:46.200 average is about one redirect and so 100
+00:47:49.760 million is the same as 10 to the 8th
+00:47:52.680 when you're doing math in a system
+00:47:54.119 design interview I suggest you use
+00:47:56.079 exponents like this this uh because it
+00:47:57.880 makes the math a lot easier watch this
+00:47:59.599 so we have 10 to 8 and then there's a
+00:48:02.079 100,000 on average not on average but
+00:48:04.520 round it up excuse me seconds in a day
+00:48:07.160 right so that's 10 the 5 and so 10 8
+00:48:09.760 divided by 10 5 is just sub subtraction
+00:48:12.480 on the exponents so 10 the 3 in other
+00:48:15.680 words 1,000 so we have 1,000 requests
+00:48:19.119 per second okay uh that's if it's evenly
+00:48:22.800 distributed but we want to handle some
+00:48:24.559 Peaks so maybe we multiply by 10 or
+00:48:26.920 maybe we multiply by 100 in either case
+00:48:29.359 we're somewhere between 10 to 100K
+00:48:32.079 request per second being our Peak here
+00:48:34.880 so we did that math pretty quickly it's
+00:48:36.680 kind of a handy Tool uh using the
+00:48:38.599 exponents in that way and so then you
+00:48:40.680 start to build up some intuition about
+00:48:42.480 what is a lot and so an ec2 average
+00:48:46.319 instance like a T3 medium can handle
+00:48:49.359 around a th000 requests at a time uh I
+00:48:53.200 say around this is intentionally
+00:48:54.920 handwavy like this depends on a how
+00:48:58.160 computationally expensive these requests
+00:48:59.880 are how much memory is being used how
+00:49:01.599 much CPU is being used how large the
+00:49:03.599 payloads are how much bandwidth is being
+00:49:05.119 used like these numbers are very rough
+00:49:06.960 but in an interview you can use that
+00:49:08.440 roughly like a thousand requests
+00:49:10.680 concurrently is reasonable enough and so
+00:49:13.720 we would we can't handle this in one
+00:49:15.960 instance here if this was just one
+00:49:17.440 server and it could handle a th requests
+00:49:19.720 per second and we have 10K or 100K we
+00:49:23.119 obviously uh need to do something
+00:49:25.000 different here and so we have two two
+00:49:26.920 options to us you probably read about
+00:49:28.559 these the first is what we call
+00:49:30.040 vertically scaling and this is just
+00:49:32.079 making this box bigger so like box Plus+
+00:49:35.559 basically uh and when I say box of
+00:49:37.480 course this is the server just some
+00:49:38.720 terminology there and so we can go to a
+00:49:41.200 bigger instance instead of a T3 medium
+00:49:43.559 we can pump it up to something that has
+00:49:44.920 more CPU more memory can handle more
+00:49:46.839 bandwidth like a bigger box that's one
+00:49:49.200 option it's more expensive another
+00:49:51.599 option and this one's the most common
+00:49:52.960 one certainly in system design
+00:49:54.119 interviews is that we scale horizontally
+00:49:56.720 and that means that we just have more of
+00:49:58.760 these and that each request that comes
+00:50:00.760 in goes to one of them right and so
+00:50:04.160 that's a that's a really good option and
+00:50:05.480 the option that we're going to take here
+00:50:06.680 we're going to scale this
+00:50:08.119 horizontally but one thing that's
+00:50:09.839 interesting to note is that there are a
+00:50:11.599 lot of reads in our system 100K rights
+00:50:13.920 per second for that redirect but this
+00:50:16.119 get short URL we could imagine that
+00:50:17.720 there's far fewer of those like there
+00:50:19.079 are very few people who are trying to
+00:50:20.520 actually create a short URL every day
+00:50:22.720 maybe it's a thousandth of the amount of
+00:50:25.040 people here so just like one Quest per
+00:50:27.200 second it's not a lot and so that
+00:50:29.839 doesn't need to scale a lot the reads
+00:50:31.760 need to scale a lot and so as a result
+00:50:34.319 what we can do here is something uh kind
+00:50:37.119 of interesting which is that we can
+00:50:39.680 evolve our design to be a microservice
+00:50:43.880 architecture and in doing so we're going
+00:50:46.079 to have two separate Services both of
+00:50:48.520 which are scaling horizontally we're
+00:50:50.880 going to have one here which is our read
+00:50:52.480 Service this one's going to be
+00:50:53.760 responsible for the redirection and one
+00:50:56.119 which is our WR service this one's going
+00:50:58.359 to be responsible for creating the short
+00:51:01.240 URLs and then in doing so we're going to
+00:51:03.680 introduce a new component here that we
+00:51:05.359 call an API Gateway and it's responsible
+00:51:08.839 for being the entry point so the API
+00:51:10.960 Gateway gets a request for one of those
+00:51:12.480 API endpoints that we Define and then
+00:51:14.680 it's going to determine based on that
+00:51:16.160 API endpoint which one of these services
+00:51:17.960 do I go to which one should I route this
+00:51:19.760 request to the read service or the right
+00:51:22.359 service
+00:51:23.680 respectively and then the right service
+00:51:25.839 of course we're going to do
+00:51:27.880 this let's just tie everything together
+00:51:30.599 here we have this is only on the read
+00:51:34.359 service and then this still goes through
+00:51:37.079 here right or maybe you can make this
+00:51:40.000 abstraction like this if you want to
+00:51:41.760 since it's a read through but in any
+00:51:43.200 case kind of the same thing just a
+00:51:44.720 little bit of a layer of abstraction
+00:51:46.480 there okay and so now we've split this
+00:51:49.119 up and what this means is that this read
+00:51:50.720 Service we're going to scale this one
+00:51:52.000 horizontally we're going to have a lot
+00:51:53.040 of them bang bang bang and we might have
+00:51:55.400 far fewer of these right services and it
+00:51:57.240 affords us the ability to do so now let
+00:51:59.720 me just note that this is like this is
+00:52:02.839 true and it would be a good thing to say
+00:52:04.599 in your system design interview but
+00:52:06.200 there's like a very little bit of code
+00:52:07.880 happening on both of these boxes and the
+00:52:09.520 reality is like splitting this up into
+00:52:11.359 two means that you have two different
+00:52:12.559 services to maintain and it's probably
+00:52:14.839 Overkill there's no right or wrong
+00:52:16.520 answer but I just want to call that out
+00:52:18.400 you very well could just keep these in
+00:52:19.839 the same box and scale them the same but
+00:52:23.520 uh you know it's a trade-off to way this
+00:52:25.119 is totally a valid option too so feel
+00:52:27.240 free to discuss it in your interview um
+00:52:29.920 now which each of these Services when it
+00:52:31.839 comes to their scaling nowadays this is
+00:52:34.480 like all handled for you on the modern
+00:52:36.640 Cloud infrastructure whether it's uh you
+00:52:38.640 know Google cloud or AWS or Azure or
+00:52:41.280 otherwise and there's just autoscale it
+00:52:43.839 and so you can have these ec2 instances
+00:52:45.799 or you know in the AWS world and you
+00:52:48.640 configure memory in CPU limits so you
+00:52:51.799 basically say if 75% of my clusters
+00:52:54.160 memory is used or if 75% of my CPUs use
+00:52:57.000 throw up a new box and then if less than
+00:52:59.440 20% is being used take a box down and
+00:53:01.839 these things will just scale
+00:53:03.160 automatically and yes technically of
+00:53:05.319 course there's a load balancer here in
+00:53:06.799 front of them that is taking these
+00:53:08.400 requests and then just routing them
+00:53:10.119 either with round robin or however else
+00:53:11.799 you configure it within your um you know
+00:53:15.359 your your Cloud dashboard and it's
+00:53:17.160 routing it to each of the boxes but
+00:53:18.960 that's how it works in practice nowadays
+00:53:21.280 like you don't actually control the up
+00:53:23.839 and down uh it's just all autoscaling so
+00:53:26.640 something that's worthwhile to know um
+00:53:29.240 okay so that's how we we scaled our
+00:53:30.680 services now with that right service
+00:53:32.799 though we have an issue remember we had
+00:53:34.680 that Global counter here or we had that
+00:53:36.559 counter here now this counter if we have
+00:53:40.079 multiple of these right Services we
+00:53:42.480 can't have two different counters
+00:53:44.480 they're not in sync like they both start
+00:53:46.160 at zero and then they go to one and now
+00:53:48.240 there's two ones there's two twos you
+00:53:49.640 get the picture right so this isn't
+00:53:50.880 going to work and instead we need all of
+00:53:52.920 these right services to agree on the
+00:53:55.079 same current count and so what we need
+00:53:58.040 to do is we need to pull this counter
+00:53:59.799 off of the instances basically that
+00:54:01.480 counter can't be in memory anymore on
+00:54:03.920 these particular servers we need what we
+00:54:05.920 can call like a global counter and so we
+00:54:08.680 can have a global counter here um and
+00:54:12.200 This Global counter again could be
+00:54:13.680 reddis for what it's worth it could be
+00:54:15.240 the same instance too I'm just drawing
+00:54:17.200 this separately uh to make it easy to
+00:54:19.559 see and now they're both going to ask
+00:54:22.920 this Global counter for what's the next
+00:54:24.599 count and it just keeps a single count
+00:54:26.760 here that goes from one to two to three
+00:54:28.520 you get the picture all the way up right
+00:54:30.920 and so in Reedus's world reddis has an
+00:54:33.640 incor um which is a command that's just
+00:54:36.040 going to increment a counter you can
+00:54:37.400 have that counter here in memory and
+00:54:39.480 because redus is single threaded you
+00:54:41.000 don't have to worry about any
+00:54:41.880 concurrency it's single threaded so
+00:54:43.760 we're going to do one incur at a time
+00:54:45.119 and it's wicked fast because it's in
+00:54:46.520 memory and then we're just going to do
+00:54:47.520 the next one so the count is always
+00:54:49.640 increasing now one thing I'll mention
+00:54:51.480 just quickly is that this means now that
+00:54:54.160 uh in order to get the count you got to
+00:54:55.920 go somewhere else make a network call
+00:54:57.640 get the count come back do your
+00:54:59.440 calculation send it to the database you
+00:55:01.319 added a step here and so one thing that
+00:55:03.400 we could do which is kind of cute is
+00:55:04.880 that when a server comes online we can
+00:55:06.359 request like the next 1,000 counts for
+00:55:09.599 example and then keep all of those in
+00:55:11.559 our internal memory and then just be
+00:55:13.480 using those until we need to request the
+00:55:15.079 next 1,000 counts and if this server
+00:55:17.280 goes down before we used all 1,000 no
+00:55:19.280 big deal like those are lost forever
+00:55:21.000 those counts but it's fine right we had
+00:55:23.359 up until what it was like 3.5 trillion
+00:55:26.520 until we needed to add the the seventh
+00:55:29.680 character there so we can afford to lose
+00:55:31.280 some there's no big deal um but this is
+00:55:33.720 how this would work I'm going to remove
+00:55:35.599 that and you guys can just remember that
+00:55:37.039 these are both horizontally scaled
+00:55:39.200 respectively okay and then what about
+00:55:40.799 the database so let's head over this way
+00:55:42.880 now how does this guy need to scale well
+00:55:45.000 again let's let's do a little bit of
+00:55:46.240 math here maybe I'll I'll do it right
+00:55:48.000 here um so we have a short code that's
+00:55:51.079 like 8 bytes we have a long URL maybe
+00:55:53.200 that's like 100 bytes we have a creation
+00:55:55.000 time those are always 8 bytes
+00:55:57.119 uh we have an optional custom Alias
+00:55:59.000 maybe that's up to 100 bytes that'd be
+00:56:00.319 crazy though cuz it should be small so
+00:56:01.680 that's on the high end an expiration
+00:56:03.359 time 8 bytes you know this is 216 bytes
+00:56:07.960 232 bytes let's just round up because
+00:56:10.920 maybe we want to throw more stuff in
+00:56:12.039 there let's say 500 bytes and so we have
+00:56:14.319 500 bytes times 1 billion rows and so
+00:56:17.400 that ends up just being 500 gigabytes
+00:56:20.680 500 GB isn't a lot modern ssds are in
+00:56:24.359 like the hundreds of terabytes like 5
+00:56:26.440 gab is nothing so we can just have a
+00:56:29.280 single instance of our database it's no
+00:56:31.240 big deal the only other thing we'd be
+00:56:33.079 concerned about is the read throughput
+00:56:34.559 like can our database handle the read
+00:56:35.680 throughput and we put most of the reads
+00:56:37.920 on reddis anyway in our cache so our
+00:56:39.920 database is chilling it's good to go now
+00:56:42.359 if we did need to scale the database
+00:56:43.720 then we would Shard probably by our
+00:56:45.200 short short Ur short URL and that would
+00:56:47.760 mean that we would just have multiple
+00:56:48.920 instances of our database uh and where
+00:56:51.440 the data was stored would be based on
+00:56:53.240 like take your short URL modulo 3 and
+00:56:55.839 store it on one of those databases it's
+00:56:57.200 kind of how that works but in this case
+00:56:59.200 we didn't need to we did the math and we
+00:57:00.839 proved that it doesn't matter and so at
+00:57:03.039 this point our system is is fully
+00:57:05.640 scaled coming back over the last thing
+00:57:07.720 that we had was high availability now
+00:57:09.880 most of what we've done by having the
+00:57:11.440 auto scaling by separating these and
+00:57:13.440 scaling them independently horizontal
+00:57:15.599 scaling uh we're at this point largely
+00:57:18.799 available there are some things that we
+00:57:20.640 want to consider like reddis here uh we
+00:57:23.680 would want to make sure that we probably
+00:57:25.440 have honestly I don't care actually if
+00:57:27.559 redus goes down it's fine because it's
+00:57:28.960 read through so we'll load it back up by
+00:57:30.520 just hitting the database we'll be slow
+00:57:31.799 for a little bit no big deal if the
+00:57:33.799 global counter goes down that would be a
+00:57:35.160 problem so we'd want to have some high
+00:57:36.960 availability modes here which basically
+00:57:38.680 means that we would have some redundancy
+00:57:40.680 uh we can also periodically snapshot the
+00:57:42.520 count and save it to disk um if you want
+00:57:45.160 to look up reddis high availability mode
+00:57:47.440 it'll it'll uh explain to you more about
+00:57:49.559 how all of that works but that's a
+00:57:50.760 configuration here in the database too
+00:57:54.119 um we can have some some replicas
+00:57:57.000 so maybe we have a single replica we
+00:57:59.720 frankly probably don't even I don't know
+00:58:02.640 having a single replica would be good in
+00:58:04.240 case the database went down um but we're
+00:58:06.640 also just going to take snapshots every
+00:58:08.920 hour or so so a snapshot of the current
+00:58:10.960 state of the database stored in
+00:58:12.200 something like S3 a big cheap blob
+00:58:14.000 storage and that way if the database
+00:58:15.520 ever goes down we just pull it back up
+00:58:17.960 having that replica there means that if
+00:58:19.520 one database goes down we can just point
+00:58:21.000 to the replica and it can be in charge
+00:58:22.559 for a while until we get our Snapchat
+00:58:24.559 back up Snapshot back up
+00:58:26.760 um but that should satisfy our high
+00:58:28.400 availability in this case no
+00:58:31.039 problem so at this point we take a look
+00:58:34.680 back at our requirements and we've
+00:58:36.280 satisfied all of our functional
+00:58:37.359 requirements when we did the high level
+00:58:38.559 design we've now satisfied all of our
+00:58:40.599 non-functional requirements and we look
+00:58:42.920 at ourselves and we say I nailed it like
+00:58:45.000 I've passed this interview I've crushed
+00:58:46.559 it and I know I've crushed it because me
+00:58:48.079 and my interviewer agreed on the
+00:58:49.520 requirements and I have now completed my
+00:58:51.799 design satisfying all of those
+00:58:53.440 requirements and so I'm feeling really
+00:58:55.160 good you should be feeling really good
+00:58:57.280 hopefully you learned a lot as
+00:58:59.680 well so there you have it I hope you all
+00:59:02.039 learned something today especially if
+00:59:03.440 you're new to system design I really
+00:59:05.359 hope you found this useful uh we're
+00:59:07.319 going to get back to our regularly
+00:59:08.319 scheduled programming don't worry with
+00:59:09.680 some of those more complex problems and
+00:59:11.280 breakdowns coming out in the near future
+00:59:13.960 uh as always if you have questions
+00:59:15.480 feedbacks things that you think I did
+00:59:17.160 wrong please go ahead and leave a
+00:59:18.440 comment I'd love to hear from you uh and
+00:59:21.039 I get to as many of those as I can so
+00:59:22.880 don't hesitate there and of course don't
+00:59:24.680 forget to like And subscribe all right
+00:59:27.280 good luck in your upcoming interviews
+00:59:28.880 I'll see youall soon

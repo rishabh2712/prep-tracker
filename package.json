@@ -1,0 +1,21 @@
+{
+  "name": "uber-ai-prep-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "45-day interview prep tracker and analysis CLI",
+  "scripts": {
+    "prep:record": "node prep/app/tracker.js record",
+    "prep:analyze": "node prep/app/tracker.js analyze",
+    "prep:report": "node prep/app/tracker.js report",
+    "prep:codex-run": "bash prep/scripts/codex-run.sh",
+    "prep:new-day": "bash prep/scripts/new-day-code.sh",
+    "tracker:dev": "npm run dev --prefix apps/prep-tracker",
+    "tracker:build": "npm run build --prefix apps/prep-tracker",
+    "tracker:start": "npm run start --prefix apps/prep-tracker",
+    "tracker:lint": "npm run lint --prefix apps/prep-tracker",
+    "tracker:seed:frontend:bank": "npm run seed:frontend:bank --prefix apps/prep-tracker",
+    "tracker:seed:uber:60d": "npm run seed:uber:60d --prefix apps/prep-tracker",
+    "tracker:import:uber:lww": "npm run import:uber:lww --prefix apps/prep-tracker",
+    "tracker:import:uber:ranked": "npm run import:uber:ranked --prefix apps/prep-tracker"
+  }
+}

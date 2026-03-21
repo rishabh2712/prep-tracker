@@ -1,0 +1,17 @@
+# Local progression store (runtime generated)
+/prep/local-store/*.json
+/prep/local-store/*.jsonl
+
+# Generated analysis outputs
+/prep/tracker/progression-report.md
+/prep/tracker/codex-last-message.md
+
+# Node artifacts
+/node_modules/
+
+# Local Codex app metadata
+/.codex/
+
+# Local Supabase CLI state
+/supabase/.branches/
+/supabase/.temp/
