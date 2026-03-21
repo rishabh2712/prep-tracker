@@ -7,7 +7,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "migrate:legacy:to:supabase": "node --env-file=.env.local ./scripts/migrate-legacy-sqlite-to-supabase.mjs",
     "seed:frontend:bank": "node --env-file=.env.local ./scripts/seed-frontend-bank.mjs",
     "seed:uber": "node --env-file=.env.local ./scripts/seed-uber-bank-and-plan.mjs",
     "refine:uber:sd": "node --env-file=.env.local ./scripts/refine-uber-system-design.mjs",
@@ -20,8 +19,6 @@
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.3",
-    "@types/better-sqlite3": "^7.6.13",
-    "better-sqlite3": "^12.6.2",
     "date-fns": "^4.1.0",
     "next": "16.1.6",
     "postgres": "^3.4.8",

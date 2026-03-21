@@ -5,7 +5,6 @@ import { nextReviewFromNow } from "@/lib/schedule";
 import { inferSystemDesignConcept, inferSystemDesignLevel } from "@/lib/system-design-taxonomy";
 import type {
   ChangeAction,
-  ChangeLog,
   GoalDayEntry,
   GoalDayRecord,
   GoalItemRecord,
@@ -19,10 +18,10 @@ import type {
   LinkRecord,
   ModuleProgress,
   PrepItem,
+  ProgressTargets,
   ProgressSnapshot,
   ReviewLog,
   ReviewOutcome,
-  TrackerGoals,
 } from "@/lib/types";
 import type {
   ContentItemLinkRow,
@@ -32,9 +31,7 @@ import type {
   GoalSessionRow,
   GoalTargetRow,
   HydratedContentItem,
-  UserChangeLogRow,
   UserReviewLogRow,
-  UserSettingsRow,
 } from "@/lib/db/types";
 
 const SHARED_PAYLOAD_KEYS = [
@@ -332,15 +329,6 @@ export function mapGoalRow(row: GoalRow): GoalRecord {
   };
 }
 
-export function mapUserSettings(row: UserSettingsRow | null | undefined): TrackerGoals {
-  return {
-    leetcodeTarget: Math.max(0, Number(row?.leetcode_target ?? 0)),
-    systemDesignTarget: Math.max(0, Number(row?.system_design_target ?? 0)),
-    targetDate: asNullableIsoString(row?.target_date),
-    updatedAt: asIsoString(row?.updated_at),
-  };
-}
-
 export function mapReviewRow(row: UserReviewLogRow): ReviewLog {
   return {
     id: row.id,
@@ -349,16 +337,6 @@ export function mapReviewRow(row: UserReviewLogRow): ReviewLog {
     notesMarkdown: row.notes_markdown,
     previousReviewAt: asNullableIsoString(row.previous_review_at),
     nextReviewAt: asIsoString(row.next_review_at),
-    createdAt: asIsoString(row.created_at),
-  };
-}
-
-export function mapChangeRow(row: UserChangeLogRow): ChangeLog {
-  return {
-    id: row.id,
-    itemId: row.content_item_id,
-    action: row.action,
-    details: row.details_json ?? {},
     createdAt: asIsoString(row.created_at),
   };
 }
@@ -432,7 +410,7 @@ export function toModuleProgress(target: number, done: number, velocityPerWeek: 
   };
 }
 
-export function computeProgressSnapshot(items: PrepItem[], goals: TrackerGoals): ProgressSnapshot {
+export function computeProgressSnapshot(items: PrepItem[], goals: ProgressTargets): ProgressSnapshot {
   const active = items.filter((item) => !item.deletedAt);
   const leetcodeDone = active.filter((item) => item.type === "LEETCODE" && item.leetcodeOutcome === "SOLVED").length;
   const systemDone = active.filter((item) => item.type === "SYSTEM_DESIGN" && item.state === "DONE").length;

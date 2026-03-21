@@ -122,24 +122,6 @@ export const reviewSchema = z.object({
   goalId: z.string().uuid().optional(),
 });
 
-export const uberDayUpdateSchema = z.object({
-  status: z.enum(["NOT_STARTED", "IN_PROGRESS", "COMPLETED"]).optional(),
-  coding_score_10: z.string().optional(),
-  design_score_10: z.string().optional(),
-  build_done: z.string().optional(),
-  leadership_done: z.string().optional(),
-  total_minutes: z.string().optional(),
-  mistake_tags: z.string().optional(),
-  reattempt_date: z.string().optional(),
-  notes: z.string().optional(),
-});
-
-export const goalsUpdateSchema = z.object({
-  leetcodeTarget: z.number().int().min(0).max(5000).optional(),
-  systemDesignTarget: z.number().int().min(0).max(2000).optional(),
-  targetDate: z.string().datetime().nullable().optional(),
-});
-
 export const goalCreateSchema = z.object({
   name: z.string().trim().min(1, "Goal name is required"),
   description: z.string().trim().optional().default(""),
@@ -238,8 +220,6 @@ export const agentIngestSchema = z.object({
 export type ItemCreateInput = z.infer<typeof itemCreateSchema>;
 export type ItemUpdateInput = z.infer<typeof itemUpdateSchema>;
 export type ReviewInput = z.infer<typeof reviewSchema>;
-export type UberDayUpdateInput = z.infer<typeof uberDayUpdateSchema>;
-export type GoalsUpdateInput = z.infer<typeof goalsUpdateSchema>;
 export type GoalCreateInput = z.infer<typeof goalCreateSchema>;
 export type GoalUpdateInput = z.infer<typeof goalUpdateSchema>;
 export type GoalDayUpdateInput = z.infer<typeof goalDayUpdateSchema>;

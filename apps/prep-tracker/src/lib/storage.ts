@@ -10,7 +10,6 @@ import {
   deleteGoalTargetForUser,
   getGoalProgressForUser,
   getGoalRecordForUser,
-  getLegacyGoalsForUser,
   listGoalDaysForUser,
   listGoalItemsForUser,
   listGoalRecordsForUser,
@@ -21,7 +20,6 @@ import {
   replaceGoalTargetsForUser,
   updateGoalDayForUser,
   updateGoalRecordForUser,
-  updateLegacyGoalsForUser,
   upsertGoalTargetForUser,
 } from "@/lib/db/repositories/goals";
 import {
@@ -36,18 +34,15 @@ import {
   softDeleteAccessibleItem,
   updateAccessibleItem,
 } from "@/lib/db/repositories/items";
-import { getRecentChangesForUser, getStatsForUser } from "@/lib/db/repositories/stats";
 import { DuplicateItemError, MarkdownConflictError } from "@/lib/db/prep-items";
 import type {
   GoalSessionRecord,
   GoalTargetRecord,
-  PrepItem,
 } from "@/lib/types";
 import type {
   AgentIngestInput,
   GoalCreateInput,
   GoalDayUpdateInput,
-  GoalsUpdateInput,
   GoalSessionCreateInput,
   GoalTargetDeleteInput,
   GoalTargetReplaceInput,
@@ -104,22 +99,6 @@ export async function hardDeleteItem(id: string) {
 
 export async function addReview(itemId: string, input: ReviewInput, goalId?: string) {
   return addReviewForItem(await requireUserId(), itemId, input, goalId);
-}
-
-export async function getStats() {
-  return getStatsForUser(await requireUserId());
-}
-
-export async function getRecentChanges(limit = 20) {
-  return getRecentChangesForUser(await requireUserId(), limit);
-}
-
-export async function getGoals() {
-  return getLegacyGoalsForUser(await requireUserId());
-}
-
-export async function updateGoals(input: GoalsUpdateInput) {
-  return updateLegacyGoalsForUser(await requireUserId(), input);
 }
 
 export async function listBankItems(kind: "LEETCODE" | "SYSTEM_DESIGN", q?: string) {

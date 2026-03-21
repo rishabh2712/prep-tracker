@@ -19,7 +19,6 @@ const PRIMARY_NAV: NavItem[] = [
   { href: "/frontend", label: "Frontend", description: "Uber frontend bank" },
   { href: "/bank", label: "Master Bank", description: "Canonical prep items" },
   { href: "/goals", label: "Goals", description: "Plans and pacing" },
-  { href: "/legacy", label: "Legacy", description: "Older dashboard surface" },
 ];
 
 const SECONDARY_NAV: NavItem[] = [{ href: "/items/new", label: "New Item", description: "Create a private prep item" }];
@@ -29,7 +28,6 @@ function matchesRoute(pathname: string, href: string): boolean {
   if (href === "/frontend") return pathname === "/frontend";
   if (href === "/bank") return pathname === "/bank" || pathname.startsWith("/items/");
   if (href === "/goals") return pathname === "/goals" || pathname.startsWith("/goals/");
-  if (href === "/legacy") return pathname === "/legacy";
   if (href === "/items/new") return pathname === "/items/new";
   return pathname === href;
 }

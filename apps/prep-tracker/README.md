@@ -80,14 +80,6 @@ The runtime model is:
   - Per-user markdown docs for system design and long-form notes
 - `goals`, `goal_items`, `goal_days`, `goal_day_entries`, `goal_targets`, `goal_sessions`
   - Per-user planning and execution data
-- `user_settings`
-  - Legacy tracker goals per user
-
-### Legacy storage
-
-- Legacy source DB for migration: `apps/prep-tracker/data/prep.db` (SQLite)
-- Legacy markdown source files: `prep/content/system-design/*.md`
-- One-time migration script: `apps/prep-tracker/scripts/migrate-legacy-sqlite-to-supabase.mjs`
 
 ## Key API Surface
 
@@ -100,7 +92,7 @@ The runtime model is:
   - `DELETE /api/items/:id/hard-delete`
   - `POST /api/items/:id/reviews`
 - Goals
-  - `GET/POST/PATCH /api/goals`
+  - `GET/POST /api/goals`
   - `GET/PATCH /api/goals/:id`
   - `GET/POST/DELETE /api/goals/:id/items`
   - `GET /api/goals/:id/progress`
@@ -128,6 +120,103 @@ The runtime model is:
     - `apps/prep-tracker/src/lib/system-design-taxonomy.ts`
 - Seed scripts: `apps/prep-tracker/scripts`
 - Prep packets: `prep/packets`
+
+## Start Locally
+
+Recommended local flow for a fresh setup:
+
+### Prerequisites
+
+- Node `20.20.x`
+- Docker Desktop running
+- `npm install` already run at repo root
+
+### 1) Install dependencies
+
+From repo root:
+
+```bash
+cd /Users/rishabhbansal/Desktop/source/journey/uber-ai
+source ~/.nvm/nvm.sh
+nvm use 20.20.0 >/dev/null
+npm install
+```
+
+### 2) Create local env
+
+Copy `apps/prep-tracker/.env.example` to `apps/prep-tracker/.env.local`.
+
+For local Supabase development, you can keep the file minimal and set only:
+
+```bash
+NEXT_PUBLIC_APP_BASE_URL=http://localhost:3000
+NEXT_PUBLIC_SUPABASE_AUTH_REDIRECT_URL=http://localhost:3000/auth/callback
+APP_BASE_URL=http://localhost:3000
+SUPABASE_AUTH_REDIRECT_URL=http://localhost:3000/auth/callback
+SEED_USER_EMAIL=you@example.com
+SEED_USER_PASSWORD=change-me
+SEED_USER_NAME=Prep Tracker Owner
+```
+
+The app and local scripts automatically fall back to the default local Supabase URL, anon key, service-role key, and database URL while `NODE_ENV` is not `production`.
+
+### 3) Start local Supabase
+
+From repo root:
+
+```bash
+cd /Users/rishabhbansal/Desktop/source/journey/uber-ai
+source ~/.nvm/nvm.sh
+nvm use 20.20.0 >/dev/null
+npx supabase start
+npx supabase db reset
+```
+
+Useful local URLs:
+
+- App: `http://localhost:3000`
+- Supabase Studio: `http://127.0.0.1:54323`
+- Mailpit: `http://127.0.0.1:54324`
+
+### 4) Load local data
+
+From `apps/prep-tracker`:
+
+```bash
+cd /Users/rishabhbansal/Desktop/source/journey/uber-ai/apps/prep-tracker
+npm run seed:frontend:bank
+```
+
+This:
+
+- seeds the curated frontend bank so `/frontend` is populated
+
+### 5) Start the app
+
+From repo root:
+
+```bash
+cd /Users/rishabhbansal/Desktop/source/journey/uber-ai
+source ~/.nvm/nvm.sh
+nvm use 20.20.0 >/dev/null
+npm run tracker:dev
+```
+
+Then open `http://localhost:3000/signup` and create your local account.
+
+If you want goal seed scripts such as `npm run seed:uber:60d` to attach data to that same account, set `SEED_USER_EMAIL` to the same email you sign up with first.
+
+### Quick restart after first setup
+
+Once the database has already been seeded:
+
+```bash
+cd /Users/rishabhbansal/Desktop/source/journey/uber-ai
+source ~/.nvm/nvm.sh
+nvm use 20.20.0 >/dev/null
+npx supabase start
+npm run tracker:dev
+```
 
 ## Run Commands
 
@@ -159,9 +248,18 @@ SUPABASE_SERVICE_ROLE_KEY=
 DATABASE_URL=
 APP_BASE_URL=http://localhost:3000
 SUPABASE_AUTH_REDIRECT_URL=http://localhost:3000/auth/callback
-MIGRATION_BOOTSTRAP_EMAIL=
-MIGRATION_BOOTSTRAP_PASSWORD=
+SEED_USER_EMAIL=
+SEED_USER_PASSWORD=
+SEED_USER_NAME=
 ```
+
+For hosted or remote Supabase environments, fill every variable explicitly.
+For local development against `supabase start`, the app can use built-in local fallbacks for:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `DATABASE_URL`
 
 Recommended project split:
 
@@ -190,23 +288,6 @@ The schema includes:
 - per-user progress + docs tables
 - Supabase `profiles` sync trigger
 - RLS policies for shared read / personal write isolation
-
-## Legacy Migration
-
-To migrate the existing local SQLite tracker into Supabase:
-
-```bash
-cd apps/prep-tracker
-npm run migrate:legacy:to:supabase
-```
-
-What it does:
-
-- bootstraps one owner account in Supabase Auth
-- migrates canonical/shared content into `content_items`
-- migrates personal progress into `user_item_state`
-- migrates review logs, change logs, goals, sessions, targets, and day plans
-- migrates markdown docs into `user_item_docs`
 
 ## Auth Routes
 
@@ -275,8 +356,6 @@ Those scripts require `DATABASE_URL`. Scripts that also attach items to goals re
 - `SEED_USER_EMAIL`
 - `SEED_USER_PASSWORD` (only if the seed user does not exist yet)
 
-The migration/bootstrap flow additionally requires Supabase auth env vars.
-
 What they do:
 - `seed:uber`
   - Seeds Uber-centric LeetCode + SD bank and goal links.
@@ -287,7 +366,7 @@ What they do:
 - `seed:sd:tutorials`
   - Adds tutorial track items from local `py-tutor` docs and links them to Uber goals.
 - `seed:uber:60d`
-  - Removes all existing goals and clears legacy Frontend Masters items.
+  - Resets existing goals for the configured seed user.
   - Seeds a single goal `Uber Staff 60D - Core+GenAI`.
   - Ensures the goal includes all 4 modules:
     - `LeetCode`

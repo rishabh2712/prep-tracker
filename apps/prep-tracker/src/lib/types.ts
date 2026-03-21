@@ -116,14 +116,7 @@ export type ChangeLog = {
   createdAt: string;
 };
 
-export type PrepDB = {
-  items: PrepItem[];
-  reviewLogs: ReviewLog[];
-  changeLogs: ChangeLog[];
-  goals?: TrackerGoals;
-};
-
-export type TrackerGoals = {
+export type ProgressTargets = {
   leetcodeTarget: number;
   systemDesignTarget: number;
   targetDate: string | null;
@@ -304,21 +297,3 @@ export type SystemDesignMarkdownDoc = {
 };
 
 export type DayStatus = "NOT_STARTED" | "IN_PROGRESS" | "COMPLETED";
-
-export type UberDayRecord = {
-  day: number;
-  date: string;
-  concept: string;
-  core_q1: string;
-  core_q2: string;
-  stretch_q: string;
-  status: DayStatus;
-  coding_score_10: string;
-  design_score_10: string;
-  build_done: string;
-  leadership_done: string;
-  total_minutes: string;
-  mistake_tags: string;
-  reattempt_date: string;
-  notes: string;
-};

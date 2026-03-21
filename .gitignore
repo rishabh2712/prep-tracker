@@ -15,3 +15,6 @@
 # Local Supabase CLI state
 /supabase/.branches/
 /supabase/.temp/
+
+# Nested local playground repo
+/async-react-practice/

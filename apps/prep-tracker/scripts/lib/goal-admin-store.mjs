@@ -19,15 +19,15 @@ function buildDateRange(startDate, endDate) {
 }
 
 export async function requireSeedUser() {
-  const email = process.env.SEED_USER_EMAIL ?? process.env.MIGRATION_BOOTSTRAP_EMAIL;
+  const email = process.env.SEED_USER_EMAIL;
   if (!email) {
-    throw new Error("Set SEED_USER_EMAIL (or MIGRATION_BOOTSTRAP_EMAIL) before running goal seed scripts.");
+    throw new Error("Set SEED_USER_EMAIL before running goal seed scripts.");
   }
 
   return ensureUserByEmail({
     email,
-    password: process.env.SEED_USER_PASSWORD ?? process.env.MIGRATION_BOOTSTRAP_PASSWORD,
-    displayName: process.env.SEED_USER_NAME ?? process.env.MIGRATION_BOOTSTRAP_NAME,
+    password: process.env.SEED_USER_PASSWORD,
+    displayName: process.env.SEED_USER_NAME,
   });
 }
 

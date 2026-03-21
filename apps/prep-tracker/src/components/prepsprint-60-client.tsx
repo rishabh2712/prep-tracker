@@ -1506,11 +1506,6 @@ export function PrepSprint60Client() {
                         Goals
                       </Link>
                     </li>
-                    <li>
-                      <Link href="/legacy" className="text-blue-300 hover:underline">
-                        Legacy Dashboard
-                      </Link>
-                    </li>
                   </ul>
                 </article>
               </section>

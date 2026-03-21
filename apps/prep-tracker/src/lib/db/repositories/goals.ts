@@ -9,7 +9,6 @@ import type {
 import type {
   GoalCreateInput,
   GoalDayUpdateInput,
-  GoalsUpdateInput,
   GoalSessionCreateInput,
   GoalTargetDeleteInput,
   GoalTargetReplaceInput,
@@ -23,7 +22,6 @@ import type {
   GoalRow,
   GoalSessionRow,
   GoalTargetRow,
-  UserSettingsRow,
 } from "@/lib/db/types";
 import {
   applyGoalSessionItemUpdates,
@@ -35,7 +33,6 @@ import {
   mapGoalRow,
   mapGoalSessionRow,
   mapGoalTargetRow,
-  mapUserSettings,
 } from "@/lib/db/prep-items";
 import { addReviewForItem, getAccessibleItem, getAccessibleItemsByIds, updateAccessibleItem } from "@/lib/db/repositories/items";
 
@@ -85,38 +82,6 @@ async function syncGoalDays(goal: { id: string; dailyMinutesTarget: number; star
       await sql`delete from public.goal_days where goal_id = ${goal.id} and date = ${row.date}`;
     }
   }
-}
-
-export async function getLegacyGoalsForUser(userId: string) {
-  const sql = getSql();
-  const [row] = await sql<UserSettingsRow[]>`
-    select *
-    from public.user_settings
-    where user_id = ${userId}
-    limit 1
-  `;
-  return mapUserSettings(row ?? null);
-}
-
-export async function updateLegacyGoalsForUser(userId: string, input: GoalsUpdateInput) {
-  const sql = getSql();
-  const current = await getLegacyGoalsForUser(userId);
-  const next = {
-    leetcodeTarget: input.leetcodeTarget ?? current.leetcodeTarget,
-    systemDesignTarget: input.systemDesignTarget ?? current.systemDesignTarget,
-    targetDate: input.targetDate ?? current.targetDate,
-  };
-
-  await sql`
-    insert into public.user_settings (user_id, leetcode_target, system_design_target, target_date)
-    values (${userId}, ${next.leetcodeTarget}, ${next.systemDesignTarget}, ${next.targetDate})
-    on conflict (user_id) do update set
-      leetcode_target = excluded.leetcode_target,
-      system_design_target = excluded.system_design_target,
-      target_date = excluded.target_date
-  `;
-
-  return await getLegacyGoalsForUser(userId);
 }
 
 export async function listGoalRecordsForUser(userId: string) {

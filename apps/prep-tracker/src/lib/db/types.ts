@@ -1,5 +1,4 @@
 import type {
-  ChangeLog,
   ConfidenceLevel,
   GoalDayEntry,
   GoalDayRecord,
@@ -14,7 +13,6 @@ import type {
   MasteryLevel,
   PrepItem,
   ReviewLog,
-  TrackerGoals,
 } from "@/lib/types";
 
 export type ContentItemRow = {
@@ -76,28 +74,11 @@ export type UserReviewLogRow = {
   created_at: string;
 };
 
-export type UserChangeLogRow = {
-  id: string;
-  user_id: string;
-  content_item_id: string | null;
-  action: ChangeLog["action"];
-  details_json: Record<string, unknown> | null;
-  created_at: string;
-};
-
 export type UserItemDocRow = {
   user_id: string;
   content_item_id: string;
   content_markdown: string;
   checksum: string;
-  updated_at: string;
-};
-
-export type UserSettingsRow = {
-  user_id: string;
-  leetcode_target: number;
-  system_design_target: number;
-  target_date: string | null;
   updated_at: string;
 };
 
@@ -184,5 +165,3 @@ export type TargetCoverageInput = {
 };
 
 export type GoalProgressBuckets = GoalTargetCoverageBucket[];
-
-export type LegacyGoals = TrackerGoals;
