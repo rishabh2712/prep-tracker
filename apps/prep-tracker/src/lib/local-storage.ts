@@ -3,6 +3,7 @@ import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import frontendManifestJson from "../../data/frontend-bank/uber-frontend-bank.json";
+import leetcodeWizardJson from "../../data/imports/leetcodewizard-uber-2026-02-21.json";
 import uberRankedJson from "../../data/imports/uber-ranked-slugs-2026-03-13.json";
 import { companySignalsFromItem } from "@/lib/company-signals";
 import { computeNextIntervalDays, nextReviewFromNow } from "@/lib/schedule";
@@ -90,6 +91,26 @@ type FrontendManifest = {
 type RankedImport = {
   capturedAt: string;
   periods: Record<string, string[]>;
+};
+
+type LeetcodeWizardMergedProblem = {
+  slug: string;
+  title: string;
+  externalId?: number;
+  paidOnly?: boolean;
+  tags?: string[];
+  frequencies?: Record<string, number>;
+  score?: number;
+  difficulty?: string | null;
+  pattern?: string | null;
+  link?: string | null;
+};
+
+type LeetcodeWizardImport = {
+  source: string;
+  companyId: string;
+  fetchedAt: string;
+  mergedProblems: LeetcodeWizardMergedProblem[];
 };
 
 type ItemRow = {
@@ -214,8 +235,22 @@ type ReviewRow = {
 };
 
 const FRONTEND_MANIFEST = frontendManifestJson as FrontendManifest;
+const LEETCODE_WIZARD_IMPORT = leetcodeWizardJson as LeetcodeWizardImport;
 const UBER_RANKED_IMPORT = uberRankedJson as RankedImport;
 const LOCAL_DB_PATH = process.env.PREP_TRACKER_DB_PATH?.trim() || path.join(process.cwd(), "data", "prep.db");
+
+const MANUAL_RANKED_LEETCODE_ENRICHMENTS: Record<string, { difficulty: string; pattern: string }> = {
+  "shortest-path-to-get-all-keys": { difficulty: "Hard", pattern: "Graphs" },
+  "longest-subsequence-with-limited-sum": { difficulty: "Easy", pattern: "Binary Search" },
+  "maximum-number-of-alloys": { difficulty: "Medium", pattern: "Binary Search" },
+  "vertical-order-traversal-of-a-binary-tree": { difficulty: "Hard", pattern: "Trees" },
+  "minimum-jumps-to-reach-end-via-prime-teleportation": { difficulty: "Hard", pattern: "Graphs" },
+  "find-all-people-with-secret": { difficulty: "Hard", pattern: "Graphs" },
+  "rearranging-fruits": { difficulty: "Hard", pattern: "Greedy" },
+  ipo: { difficulty: "Hard", pattern: "Heap / Priority Queue" },
+  "maximum-number-of-points-from-grid-queries": { difficulty: "Hard", pattern: "Heap / Priority Queue" },
+  "minimum-knight-moves": { difficulty: "Medium", pattern: "Graphs" },
+};
 
 declare global {
   var __prepTrackerLocalDb__: Database.Database | undefined;
@@ -1368,6 +1403,51 @@ function buildRankedMetadata(existing: Record<string, unknown>, problem: RankedP
   };
 }
 
+function getLeetcodeWizardProblem(problemSlug: string | null | undefined) {
+  const normalizedSlug = normalizeSlug(problemSlug);
+  if (!normalizedSlug) return null;
+  return LEETCODE_WIZARD_IMPORT.mergedProblems.find((problem) => normalizeSlug(problem.slug) === normalizedSlug) ?? null;
+}
+
+function getRankedLeetcodeEnrichment(problemSlug: string | null | undefined) {
+  const normalizedSlug = normalizeSlug(problemSlug);
+  if (!normalizedSlug) return null;
+
+  const wizardProblem = getLeetcodeWizardProblem(normalizedSlug);
+  if (wizardProblem) {
+    return {
+      title: wizardProblem.title?.trim() || humanizeSlug(normalizedSlug),
+      difficulty: wizardProblem.difficulty?.trim() || null,
+      pattern: wizardProblem.pattern?.trim() || null,
+      link: canonicalProblemUrl(wizardProblem.link) ?? `https://leetcode.com/problems/${normalizedSlug}/`,
+      extraTags: normalizeTags([
+        ...(wizardProblem.tags ?? []).map((tag) => `topic:${String(tag).trim().toLowerCase().replace(/\s+/g, "-")}`),
+        wizardProblem.difficulty ? `difficulty:${wizardProblem.difficulty}` : "",
+        wizardProblem.pattern ? `pattern:${wizardProblem.pattern}` : "",
+      ]),
+      metadata: {
+        externalId: wizardProblem.externalId ?? null,
+        paidOnly: Boolean(wizardProblem.paidOnly),
+        tags: wizardProblem.tags ?? [],
+        frequencies: wizardProblem.frequencies ?? {},
+        fetchedAt: LEETCODE_WIZARD_IMPORT.fetchedAt,
+      },
+    };
+  }
+
+  const manual = MANUAL_RANKED_LEETCODE_ENRICHMENTS[normalizedSlug];
+  if (!manual) return null;
+
+  return {
+    title: humanizeSlug(normalizedSlug),
+    difficulty: manual.difficulty,
+    pattern: manual.pattern,
+    link: `https://leetcode.com/problems/${normalizedSlug}/`,
+    extraTags: normalizeTags([`difficulty:${manual.difficulty}`, `pattern:${manual.pattern}`]),
+    metadata: null,
+  };
+}
+
 function getLeetcodeItemMatch(db: Database.Database, problemSlug: string | null | undefined, problemLink: string | null | undefined, title: string) {
   const normalizedSlug = normalizeSlug(problemSlug);
   if (normalizedSlug) {
@@ -1484,33 +1564,57 @@ function seedUberRankedLeetcode(db: Database.Database) {
 
   for (const problem of buildRankedProblems()) {
     const existing = getLeetcodeItemMatch(db, problem.slug, problem.link, humanizeSlug(problem.slug));
-    const metadata = buildRankedMetadata(parseMetadata(existing?.metadata), problem, timestamp);
+    const enrichment = getRankedLeetcodeEnrichment(problem.slug);
+    const existingMetadata = parseMetadata(existing?.metadata);
+    const existingWizardMetadata =
+      existingMetadata.leetcodeWizard && typeof existingMetadata.leetcodeWizard === "object" && !Array.isArray(existingMetadata.leetcodeWizard)
+        ? (existingMetadata.leetcodeWizard as Record<string, unknown>)
+        : {};
+    const metadata = buildRankedMetadata(
+      {
+        ...existingMetadata,
+        ...(enrichment?.metadata
+          ? {
+              leetcodeWizard: {
+                ...existingWizardMetadata,
+                ...enrichment.metadata,
+              },
+            }
+          : {}),
+      },
+      problem,
+      timestamp
+    );
 
     const nextItem: PrepItem = existing
       ? {
           ...existing,
-          title: existing.title.trim() ? existing.title : humanizeSlug(problem.slug),
+          title: existing.title.trim() ? existing.title : enrichment?.title ?? humanizeSlug(problem.slug),
           notesMarkdown: existing.notesMarkdown.trim()
             ? existing.notesMarkdown
-            : `# ${humanizeSlug(problem.slug)}\n\n- Source: Local Uber ranked import\n`,
-          tags: mergeTags(existing.tags, ["leetcode", "uber", "company:uber", "source:leetcodewizard"]),
+            : `# ${enrichment?.title ?? humanizeSlug(problem.slug)}\n\n- Source: Local Uber ranked import\n`,
+          tags: mergeTags(existing.tags, ["leetcode", "uber", "company:uber", "source:leetcodewizard", ...(enrichment?.extraTags ?? [])]),
           links: mergeLinks(existing.links, [{ label: "Problem", url: problem.link }]),
           platform: existing.platform ?? "LeetCode",
           problemLink: problem.link,
           problemSlug: problem.slug,
+          difficulty: existing.difficulty ?? enrichment?.difficulty ?? null,
+          pattern: existing.pattern ?? enrichment?.pattern ?? null,
           metadata,
           updatedAt: timestamp,
         }
       : sanitizeTypeSpecificFields({
           ...defaultItem(randomUUID(), "LEETCODE", timestamp),
-          title: humanizeSlug(problem.slug),
+          title: enrichment?.title ?? humanizeSlug(problem.slug),
           type: "LEETCODE",
-          notesMarkdown: `# ${humanizeSlug(problem.slug)}\n\n- Source: Local Uber ranked import\n`,
-          tags: normalizeTags(["leetcode", "uber", "company:uber", "source:leetcodewizard"]),
-          links: dedupeLinks([{ label: "Problem", url: problem.link }]),
+          notesMarkdown: `# ${enrichment?.title ?? humanizeSlug(problem.slug)}\n\n- Source: Local Uber ranked import\n`,
+          tags: normalizeTags(["leetcode", "uber", "company:uber", "source:leetcodewizard", ...(enrichment?.extraTags ?? [])]),
+          links: dedupeLinks([{ label: "Problem", url: enrichment?.link ?? problem.link }]),
           platform: "LeetCode",
-          problemLink: problem.link,
+          problemLink: enrichment?.link ?? problem.link,
           problemSlug: problem.slug,
+          difficulty: enrichment?.difficulty ?? null,
+          pattern: enrichment?.pattern ?? null,
           leetcodeOutcome: "TODO",
           metadata,
           updatedAt: timestamp,
