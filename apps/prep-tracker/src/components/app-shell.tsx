@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 
 type AppShellProps = {
   children: React.ReactNode;
-  userEmail: string | null;
 };
 
 type NavItem = {
@@ -21,7 +20,7 @@ const PRIMARY_NAV: NavItem[] = [
   { href: "/goals", label: "Goals", description: "Plans and pacing" },
 ];
 
-const SECONDARY_NAV: NavItem[] = [{ href: "/items/new", label: "New Item", description: "Create a private prep item" }];
+const SECONDARY_NAV: NavItem[] = [{ href: "/items/new", label: "New Item", description: "Capture a new prep item" }];
 
 function matchesRoute(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -60,7 +59,7 @@ function NavigationRow({ items, pathname }: { items: NavItem[]; pathname: string
   );
 }
 
-export function AppShell({ children, userEmail }: AppShellProps) {
+export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
 
   return (
@@ -71,15 +70,9 @@ export function AppShell({ children, userEmail }: AppShellProps) {
             <Link href="/" className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-300 hover:text-emerald-200">
               PrepSprint 60
             </Link>
-            <p className="mt-2 text-base font-medium text-zinc-100">Signed in as {userEmail ?? "unknown user"}</p>
-            <p className="text-sm text-zinc-400">Shared bank, personal progress, goals, notes, and practice flows.</p>
+            <p className="mt-2 text-base font-medium text-zinc-100">Local SQLite workspace</p>
+            <p className="text-sm text-zinc-400">No auth, no deployment wiring — just the tracker, bank, goals, and notes.</p>
           </div>
-
-          <form action="/auth/signout" method="post">
-            <button type="submit" className="rounded-xl border border-zinc-700 px-3 py-2 text-sm font-medium text-zinc-200 hover:border-zinc-500">
-              Sign out
-            </button>
-          </form>
         </div>
 
         <div className="mt-4 space-y-3">

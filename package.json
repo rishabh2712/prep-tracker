@@ -13,9 +13,6 @@
     "tracker:build": "npm run build --prefix apps/prep-tracker",
     "tracker:start": "npm run start --prefix apps/prep-tracker",
     "tracker:lint": "npm run lint --prefix apps/prep-tracker",
-    "tracker:seed:frontend:bank": "npm run seed:frontend:bank --prefix apps/prep-tracker",
-    "tracker:seed:uber:60d": "npm run seed:uber:60d --prefix apps/prep-tracker",
-    "tracker:import:uber:lww": "npm run import:uber:lww --prefix apps/prep-tracker",
-    "tracker:import:uber:ranked": "npm run import:uber:ranked --prefix apps/prep-tracker"
+    "tracker:reset": "npm run reset:db --prefix apps/prep-tracker"
   }
 }

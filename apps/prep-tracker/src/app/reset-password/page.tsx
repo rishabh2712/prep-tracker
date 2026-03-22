@@ -1,5 +1,5 @@
-import { AuthShell } from "@/components/auth-shell";
+import { redirect } from "next/navigation";
 
 export default function ResetPasswordPage() {
-  return <AuthShell mode="reset-password" />;
+  redirect("/");
 }

@@ -18,3 +18,9 @@
 
 # Nested local playground repo
 /async-react-practice/
+
+# Local prep-tracker runtime data
+/apps/prep-tracker/data/prep.db
+/apps/prep-tracker/data/prep.db-shm
+/apps/prep-tracker/data/prep.db-wal
+/apps/prep-tracker/data/recovery-backups/

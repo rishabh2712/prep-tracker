@@ -46,3 +46,4 @@ next-env.d.ts
 /data/prep.db
 /data/prep.db-*
 /data/prep-tracker.db
+/data/recovery-backups/

@@ -65,6 +65,8 @@ const DEFAULT_RUBRIC: RubricState = {
 
 type SystemStatus = "NOT_STARTED" | "DRAFTING_NOTES" | "MOCK_INTERVIEWED" | "CONFIDENT";
 
+const inflightJsonRequests = new Map<string, Promise<unknown>>();
+
 function toDayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -541,12 +543,35 @@ export function PrepSprint60Client() {
   const [plannerSystemPick, setPlannerSystemPick] = useState<string>("");
 
   async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(url, init);
-    const json = (await response.json().catch(() => ({}))) as T & { error?: string };
-    if (!response.ok) {
-      throw new Error(json.error ?? `Request failed: ${response.status}`);
+    const method = init?.method?.toUpperCase() ?? "GET";
+    const cacheKey = method === "GET" && !init?.body ? url : null;
+
+    if (cacheKey) {
+      const inflight = inflightJsonRequests.get(cacheKey);
+      if (inflight) {
+        return inflight as Promise<T>;
+      }
     }
-    return json;
+
+    const request = (async () => {
+      const response = await fetch(url, init);
+      const json = (await response.json().catch(() => ({}))) as T & { error?: string };
+      if (!response.ok) {
+        throw new Error(json.error ?? `Request failed: ${response.status}`);
+      }
+      return json;
+    })();
+
+    if (cacheKey) {
+      inflightJsonRequests.set(cacheKey, request);
+      request.finally(() => {
+        if (inflightJsonRequests.get(cacheKey) === request) {
+          inflightJsonRequests.delete(cacheKey);
+        }
+      });
+    }
+
+    return request;
   }
 
   async function loadGoalRuntime(goalId: string) {
@@ -554,7 +579,7 @@ export function PrepSprint60Client() {
       fetchJson<{ items: GoalItemRecord[] }>(`/api/goals/${goalId}/items`),
       fetchJson<{ progress: GoalProgress }>(`/api/goals/${goalId}/progress`),
       fetchJson<{ days: GoalDayRecord[] }>(`/api/goals/${goalId}/days`),
-      fetchJson<{ sessions: GoalSessionRecord[] }>(`/api/goals/${goalId}/sessions?limit=2000`),
+      fetchJson<{ sessions: GoalSessionRecord[] }>(`/api/goals/${goalId}/sessions?limit=500`),
     ]);
 
     setGoalItems(itemsRes.items ?? []);
@@ -577,38 +602,17 @@ export function PrepSprint60Client() {
       setGoals(allGoals);
       setLeetcodeBank(lcBankRes.items ?? []);
 
-      const goalItemCounts = new Map<string, number>();
-      await Promise.all(
-        allGoals.map(async (goal) => {
-          try {
-            const itemsRes = await fetchJson<{ items: GoalItemRecord[] }>(`/api/goals/${goal.id}/items`);
-            goalItemCounts.set(goal.id, itemsRes.items?.length ?? 0);
-          } catch {
-            goalItemCounts.set(goal.id, 0);
-          }
-        })
-      );
-
-      const hasItems = (goal: GoalRecord) => (goalItemCounts.get(goal.id) ?? 0) > 0;
       const isUber = (goal: GoalRecord) => goal.name.toLowerCase().includes("uber");
-      const pickMaxByItems = (predicate: (goal: GoalRecord) => boolean): GoalRecord | null => {
-        const candidates = allGoals.filter(predicate);
-        if (candidates.length === 0) return null;
-        return candidates.reduce((best, current) => {
-          const bestCount = goalItemCounts.get(best.id) ?? 0;
-          const currentCount = goalItemCounts.get(current.id) ?? 0;
-          if (currentCount !== bestCount) return currentCount > bestCount ? current : best;
-          return new Date(current.updatedAt).getTime() > new Date(best.updatedAt).getTime() ? current : best;
-        });
-      };
+      const byMostRecentUpdate = (left: GoalRecord, right: GoalRecord) =>
+        new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+      const pickMostRecent = (predicate: (goal: GoalRecord) => boolean): GoalRecord | null =>
+        allGoals.filter(predicate).sort(byMostRecentUpdate)[0] ?? null;
 
       const preferredGoal =
-        pickMaxByItems((goal) => isUber(goal) && hasItems(goal)) ??
-        pickMaxByItems((goal) => goal.status === "ACTIVE" && hasItems(goal)) ??
-        pickMaxByItems((goal) => hasItems(goal)) ??
-        allGoals.find((goal) => isUber(goal)) ??
-        allGoals.find((goal) => goal.status === "ACTIVE") ??
-        allGoals[0] ??
+        pickMostRecent((goal) => isUber(goal) && goal.status === "ACTIVE") ??
+        pickMostRecent((goal) => goal.status === "ACTIVE") ??
+        pickMostRecent((goal) => isUber(goal)) ??
+        [...allGoals].sort(byMostRecentUpdate)[0] ??
         null;
 
       const nextGoalId = activeGoalId && allGoals.some((goal) => goal.id === activeGoalId) ? activeGoalId : preferredGoal?.id ?? null;
