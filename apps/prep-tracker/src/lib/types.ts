@@ -14,6 +14,8 @@ export const MASTERY_LEVELS = ["LOW", "MEDIUM", "HIGH"] as const;
 export const CONFIDENCE_LEVELS = ["LOW", "MEDIUM", "HIGH"] as const;
 export const LEETCODE_OUTCOMES = ["TODO", "SOLVED", "PARTIAL", "STUCK"] as const;
 export const REVIEW_OUTCOMES = ["AGAIN", "HARD", "GOOD", "EASY"] as const;
+export const MOCK_INTERVIEW_STATUSES = ["NOT_STARTED", "IN_PROGRESS", "COMPLETED"] as const;
+export const FRONTEND_FOCUS_STATUSES = ["NOT_DONE", "DONE", "DO_AGAIN"] as const;
 
 export type ItemType = (typeof ITEM_TYPES)[number];
 export type ItemState = (typeof ITEM_STATES)[number];
@@ -21,6 +23,8 @@ export type MasteryLevel = (typeof MASTERY_LEVELS)[number];
 export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
 export type LeetcodeOutcome = (typeof LEETCODE_OUTCOMES)[number];
 export type ReviewOutcome = (typeof REVIEW_OUTCOMES)[number];
+export type MockInterviewStatus = (typeof MOCK_INTERVIEW_STATUSES)[number];
+export type FrontendFocusStatus = (typeof FRONTEND_FOCUS_STATUSES)[number];
 
 export type LinkRecord = {
   id: string;
@@ -98,6 +102,34 @@ export type ReviewLog = {
   previousReviewAt: string | null;
   nextReviewAt: string;
   createdAt: string;
+};
+
+export type MockInterviewProgress = {
+  questionId: string;
+  status: MockInterviewStatus;
+  reviewCount: number;
+  lastOutcome: ReviewOutcome | null;
+  lastReviewedAt: string | null;
+  completedAt: string | null;
+  notesMarkdown: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MockInterviewReviewLog = {
+  id: string;
+  questionId: string;
+  outcome: ReviewOutcome;
+  statusAfter: MockInterviewStatus;
+  notesMarkdown: string;
+  createdAt: string;
+};
+
+export type FrontendFocusProgress = {
+  questionId: string;
+  status: FrontendFocusStatus;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ChangeAction =

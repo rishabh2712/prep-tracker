@@ -61,3 +61,4 @@ Local runtime files are ignored under:
 - App quickstart and usage: `/Users/rishabhbansal/Desktop/source/journey/uber-ai/apps/prep-tracker/README.md:1`
 - Agent instructions: `/Users/rishabhbansal/Desktop/source/journey/uber-ai/AGENTS.md:1`
 - Architectural context: `/Users/rishabhbansal/Desktop/source/journey/uber-ai/CONTEXT.md:1`
+- Chrome AI product-review prompt: `/Users/rishabhbansal/Desktop/source/journey/uber-ai/prep/prompts/chrome-ai-product-lead-review.md:1`

@@ -77,6 +77,10 @@ function companyPillClass(company: string): string {
   return COMPANY_PILL_STYLES[Math.abs(hash) % COMPANY_PILL_STYLES.length];
 }
 
+function sourceTagsFromItem(item: PrepItem): string[] {
+  return (item.tags ?? []).filter((tag) => tag === "hackerrank" || tag === "window:one-year" || tag.startsWith("source:"));
+}
+
 function sdConcept(item: PrepItem): string {
   const metadata = (item.metadata ?? {}) as Record<string, unknown>;
   if (typeof metadata.sdConcept === "string" && metadata.sdConcept.trim()) {
@@ -126,6 +130,8 @@ export function MasterBankClient() {
   const [lcCategoryFilter, setLcCategoryFilter] = useState<"ALL" | PatternCategory>("ALL");
   const [lcPatternFilters, setLcPatternFilters] = useState<string[]>([]);
   const [lcGroupedView, setLcGroupedView] = useState(true);
+  const [lcHackerRankOnly, setLcHackerRankOnly] = useState(false);
+  const [lcOneYearWindowOnly, setLcOneYearWindowOnly] = useState(false);
 
   const [sdConceptFilter, setSdConceptFilter] = useState<string>("ALL");
   const [sdLevelFilter, setSdLevelFilter] = useState<"ALL" | "EASY" | "MEDIUM" | "HARD">("ALL");
@@ -148,6 +154,7 @@ export function MasterBankClient() {
 
   const [busy, setBusy] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
+  const [backfillBusy, setBackfillBusy] = useState(false);
 
   const isLeetcodeTab = activeTab === "LEETCODE";
   const activeSystemTrack = isLeetcodeTab ? null : SD_TAB_TRACKS[activeTab as Exclude<BankTabKey, "LEETCODE">].track;
@@ -179,6 +186,8 @@ export function MasterBankClient() {
     setLcCompanyFilters([]);
     setLcCategoryFilter("ALL");
     setLcPatternFilters([]);
+    setLcHackerRankOnly(false);
+    setLcOneYearWindowOnly(false);
     setSdConceptFilter("ALL");
     setSdLevelFilter("ALL");
   }, [activeTab]);
@@ -201,6 +210,26 @@ export function MasterBankClient() {
       setError(err instanceof Error ? err.message : "Unable to update item");
     } finally {
       setUpdatingItemId(null);
+    }
+  }
+
+  async function backfillHackerRankOverlap() {
+    setBackfillBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/bank/backfill-hackerrank", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(json.error ?? "Unable to backfill HackerRank overlap items");
+      }
+      await loadItems();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to backfill HackerRank overlap items");
+    } finally {
+      setBackfillBusy(false);
     }
   }
 
@@ -361,6 +390,14 @@ export function MasterBankClient() {
           if (!item.pattern || !lcPatternFilters.includes(item.pattern)) return false;
         }
 
+        if (lcHackerRankOnly && !item.tags.includes("hackerrank")) {
+          return false;
+        }
+
+        if (lcOneYearWindowOnly && !item.tags.includes("window:one-year")) {
+          return false;
+        }
+
         return true;
       })
       .sort((a, b) => {
@@ -368,7 +405,7 @@ export function MasterBankClient() {
         if (diffCmp !== 0) return diffCmp;
         return a.title.localeCompare(b.title);
       });
-  }, [leetcodeItems, lcCompanyFilters, lcCategoryFilter, lcPatternFilters, patternToCategory]);
+  }, [leetcodeItems, lcCompanyFilters, lcCategoryFilter, lcPatternFilters, lcHackerRankOnly, lcOneYearWindowOnly, patternToCategory]);
 
   const leetcodeGroups = useMemo(() => {
     const groups = new Map<string, PatternGroup>();
@@ -590,12 +627,24 @@ export function MasterBankClient() {
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-slate-900">Bank Items</h3>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search title, topic, pattern"
-            className="w-full rounded-md border px-3 py-2 text-sm md:w-80"
-          />
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 md:w-auto">
+            {activeTab === "LEETCODE" && (
+              <button
+                type="button"
+                disabled={backfillBusy}
+                onClick={() => void backfillHackerRankOverlap()}
+                className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 disabled:opacity-50"
+              >
+                {backfillBusy ? "Importing HackerRank overlap..." : "Import HackerRank Overlap"}
+              </button>
+            )}
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search title, topic, pattern, tag"
+              className="w-full rounded-md border px-3 py-2 text-sm md:w-80"
+            />
+          </div>
         </div>
 
         {activeTab === "LEETCODE" && (
@@ -660,7 +709,25 @@ export function MasterBankClient() {
             </div>
 
             <div className="flex items-center justify-between">
-              <p className="text-xs text-slate-600">NeetCode-style grouping by pattern</p>
+              <div className="flex flex-wrap items-center gap-4">
+                <p className="text-xs text-slate-600">NeetCode-style grouping by pattern</p>
+                <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={lcHackerRankOnly}
+                    onChange={(e) => setLcHackerRankOnly(e.target.checked)}
+                  />
+                  HackerRank overlap only
+                </label>
+                <label className="inline-flex items-center gap-2 text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={lcOneYearWindowOnly}
+                    onChange={(e) => setLcOneYearWindowOnly(e.target.checked)}
+                  />
+                  1 year window only
+                </label>
+              </div>
               <label className="inline-flex items-center gap-2 text-xs text-slate-700">
                 <input
                   type="checkbox"
@@ -762,6 +829,18 @@ export function MasterBankClient() {
                                     ))}
                                 </div>
                               )}
+                              {sourceTagsFromItem(item).length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {sourceTagsFromItem(item).map((tag) => (
+                                    <span
+                                      key={`${item.id}:${tag}`}
+                                      className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700"
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                             <div className="flex flex-wrap gap-2">
                               <Link href={`/items/${item.id}`} className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700">
@@ -812,6 +891,18 @@ export function MasterBankClient() {
                     <div>
                       <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                       <p className="text-xs text-slate-500">{item.difficulty ?? "-"} · {item.pattern ?? "-"}</p>
+                      {sourceTagsFromItem(item).length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {sourceTagsFromItem(item).map((tag) => (
+                            <span
+                              key={`${item.id}:${tag}`}
+                              className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <Link href={`/items/${item.id}`} className="rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700">
                       Open Item

@@ -10,9 +10,14 @@ import { computeNextIntervalDays, nextReviewFromNow } from "@/lib/schedule";
 import { inferSystemDesignConcept, inferSystemDesignLevel } from "@/lib/system-design-taxonomy";
 import type {
   ChangeAction,
+  FrontendFocusProgress,
+  FrontendFocusStatus,
   GoalDayEntry,
   GoalDayRecord,
   GoalItemRecord,
+  MockInterviewProgress,
+  MockInterviewReviewLog,
+  MockInterviewStatus,
   GoalModuleKind,
   GoalProgress,
   GoalRecord,
@@ -32,6 +37,9 @@ import type {
 } from "@/lib/types";
 import type {
   AgentIngestInput,
+  FrontendFocusProgressUpdateInput,
+  MockInterviewProgressUpdateInput,
+  MockInterviewReviewInput,
   GoalCreateInput,
   GoalDayUpdateInput,
   GoalSessionCreateInput,
@@ -112,6 +120,22 @@ type LeetcodeWizardImport = {
   fetchedAt: string;
   mergedProblems: LeetcodeWizardMergedProblem[];
 };
+
+type UberHackerRankDerivedRow = {
+  hackerrank_title: string;
+  hackerrank_difficulty: string;
+  hackerrank_access: string;
+  mapping_quality: string;
+  derived_statement: string;
+  leetcode_title: string;
+  leetcode_slug: string;
+  leetcode_link: string;
+  pattern: string;
+};
+
+function normalizedMarkdown(value: string | null | undefined): string {
+  return typeof value === "string" ? value.trim().replace(/\r\n/g, "\n") : "";
+}
 
 type ItemRow = {
   id: string;
@@ -234,9 +258,43 @@ type ReviewRow = {
   created_at: string;
 };
 
+type MockInterviewProgressRow = {
+  question_id: string;
+  status: MockInterviewStatus;
+  review_count: number;
+  last_outcome: ReviewOutcome | null;
+  last_reviewed_at: string | null;
+  completed_at: string | null;
+  notes_markdown: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type MockInterviewReviewRow = {
+  id: string;
+  question_id: string;
+  outcome: ReviewOutcome;
+  status_after: MockInterviewStatus;
+  notes_markdown: string;
+  created_at: string;
+};
+
+type FrontendFocusProgressRow = {
+  question_id: string;
+  status: FrontendFocusStatus;
+  created_at: string;
+  updated_at: string;
+};
+
 const FRONTEND_MANIFEST = frontendManifestJson as FrontendManifest;
 const LEETCODE_WIZARD_IMPORT = leetcodeWizardJson as LeetcodeWizardImport;
 const UBER_RANKED_IMPORT = uberRankedJson as RankedImport;
+const UBER_HACKERRANK_DERIVED_IMPORT_PATH = path.join(
+  process.cwd(),
+  "data",
+  "imports",
+  "uber-hackerrank-derived-2026-03-25.csv"
+);
 const LOCAL_DB_PATH = process.env.PREP_TRACKER_DB_PATH?.trim() || path.join(process.cwd(), "data", "prep.db");
 
 const MANUAL_RANKED_LEETCODE_ENRICHMENTS: Record<string, { difficulty: string; pattern: string }> = {
@@ -357,6 +415,34 @@ function jsonParse<T>(raw: string | null | undefined, fallback: T): T {
     return fallback;
   }
 }
+
+function parseSimpleCsv(raw: string): Array<Record<string, string>> {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return [];
+  const headers = lines[0].split(",").map((value) => value.trim());
+  return lines.slice(1).map((line) => {
+    const values = line.split(",").map((value) => value.trim());
+    const row: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      row[header] = values[index] ?? "";
+    });
+    return row;
+  });
+}
+
+function loadUberHackerRankDerivedImport(): UberHackerRankDerivedRow[] {
+  try {
+    const raw = readFileSync(UBER_HACKERRANK_DERIVED_IMPORT_PATH, "utf8");
+    return parseSimpleCsv(raw) as UberHackerRankDerivedRow[];
+  } catch {
+    return [];
+  }
+}
+
+const UBER_HACKERRANK_DERIVED_IMPORT = loadUberHackerRankDerivedImport();
 
 function sha256(content: string): string {
   return createHash("sha256").update(content).digest("hex");
@@ -933,6 +1019,35 @@ function initializeDatabase(db: Database.Database) {
       created_at text not null
     );
 
+    create table if not exists mock_interview_progress (
+      question_id text primary key,
+      status text not null default 'NOT_STARTED',
+      review_count integer not null default 0,
+      last_outcome text,
+      last_reviewed_at text,
+      completed_at text,
+      notes_markdown text not null default '',
+      created_at text not null,
+      updated_at text not null
+    );
+
+    create table if not exists mock_interview_reviews (
+      id text primary key,
+      question_id text not null,
+      outcome text not null,
+      status_after text not null,
+      notes_markdown text not null default '',
+      created_at text not null
+    );
+    create index if not exists idx_mock_interview_reviews_question on mock_interview_reviews(question_id, created_at desc);
+
+    create table if not exists frontend_focus_progress (
+      question_id text primary key,
+      status text not null default 'NOT_DONE',
+      created_at text not null,
+      updated_at text not null
+    );
+
     create table if not exists change_logs (
       id text primary key,
       item_id text references items(id) on delete set null,
@@ -1029,8 +1144,9 @@ function getDb() {
     globalThis.__prepTrackerLocalDb__.pragma("foreign_keys = ON");
   }
 
+  initializeDatabase(globalThis.__prepTrackerLocalDb__);
+
   if (!globalThis.__prepTrackerLocalDbReady__) {
-    initializeDatabase(globalThis.__prepTrackerLocalDb__);
     ensureSeedData(globalThis.__prepTrackerLocalDb__);
     globalThis.__prepTrackerLocalDbReady__ = true;
   }
@@ -1522,12 +1638,24 @@ function seedFrontendBank(db: Database.Database) {
         ? getLeetcodeItemMatch(db, entry.problemSlug ?? null, entry.problemLink ?? null, entry.title)
         : getItemByTypeTitle(db, entry.type, entry.title);
 
+    const existingMetadata = existing ? parseMetadata(existing.metadata) : null;
+    const previousGuide =
+      existingMetadata && typeof existingMetadata.studyGuideMarkdown === "string" ? existingMetadata.studyGuideMarkdown : null;
+    const canRefreshCanonicalNotes =
+      Boolean(
+        existing?.isShared &&
+          (!existing.notesMarkdown.trim() ||
+            normalizedMarkdown(existing.notesMarkdown) === normalizedMarkdown(previousGuide) ||
+            normalizedMarkdown(existing.notesMarkdown) === normalizedMarkdown(entry.studyGuideMarkdown ?? entry.notesMarkdown))
+      );
+
     const item: PrepItem = existing
       ? {
           ...existing,
+          title: entry.title,
           tags: mergeTags(existing.tags, entry.tags),
           links: mergeLinks(existing.links, entry.links),
-          notesMarkdown: existing.notesMarkdown.trim() ? existing.notesMarkdown : entry.notesMarkdown,
+          notesMarkdown: canRefreshCanonicalNotes ? entry.notesMarkdown : existing.notesMarkdown,
           metadata: { ...parseMetadata(existing.metadata), ...metadata },
           updatedAt: timestamp,
         }
@@ -1624,6 +1752,99 @@ function seedUberRankedLeetcode(db: Database.Database) {
   }
 }
 
+function seedUberHackerRankDerived(db: Database.Database) {
+  if (UBER_HACKERRANK_DERIVED_IMPORT.length === 0) return;
+  const timestamp = nowIso();
+
+  for (const row of UBER_HACKERRANK_DERIVED_IMPORT) {
+    const existing = getLeetcodeItemMatch(db, row.leetcode_slug, row.leetcode_link, row.leetcode_title);
+    const existingMetadata = parseMetadata(existing?.metadata);
+    const previousMappings = Array.isArray(existingMetadata.uberHackerRankMappings) ? existingMetadata.uberHackerRankMappings : [];
+    const nextMapping = {
+      hackerrankTitle: row.hackerrank_title,
+      hackerrankDifficulty: row.hackerrank_difficulty,
+      hackerrankAccess: row.hackerrank_access,
+      mappingQuality: row.mapping_quality,
+      derivedStatement: row.derived_statement,
+      capturedAt: timestamp,
+    };
+    const hasMapping = previousMappings.some((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      return String((entry as Record<string, unknown>).hackerrankTitle ?? "") === row.hackerrank_title;
+    });
+
+    const metadata = {
+      ...existingMetadata,
+      uberHackerRankMappings: hasMapping ? previousMappings : [...previousMappings, nextMapping],
+      uberHackerRankSource: {
+        source: "derived-analysis",
+        importedAt: timestamp,
+      },
+      windowScope: "ONE_YEAR",
+    };
+
+    const notesMarkdown = [
+      `# ${row.leetcode_title}`,
+      "",
+      "- Source: Uber HackerRank derived mapping",
+      `- HackerRank title: ${row.hackerrank_title}`,
+      `- Mapping quality: ${row.mapping_quality}`,
+      `- Access status: ${row.hackerrank_access}`,
+      "",
+      "## Derived Prompt Angle",
+      `- ${row.derived_statement}`,
+    ].join("\n");
+
+    const nextItem: PrepItem = existing
+      ? {
+          ...existing,
+          title: existing.title.trim() ? existing.title : row.leetcode_title,
+          notesMarkdown: existing.notesMarkdown.trim() ? existing.notesMarkdown : notesMarkdown,
+          tags: mergeTags(existing.tags, [
+            "leetcode",
+            "uber",
+            "hackerrank",
+            "company:uber",
+            "window:one-year",
+            "source:uber-hackerrank-derived",
+          ]),
+          links: mergeLinks(existing.links, [{ label: "Problem", url: row.leetcode_link }]),
+          platform: existing.platform ?? "LeetCode",
+          problemLink: existing.problemLink ?? row.leetcode_link,
+          problemSlug: existing.problemSlug ?? row.leetcode_slug,
+          difficulty: existing.difficulty ?? row.hackerrank_difficulty,
+          pattern: existing.pattern ?? row.pattern,
+          metadata,
+          updatedAt: timestamp,
+        }
+      : sanitizeTypeSpecificFields({
+          ...defaultItem(randomUUID(), "LEETCODE", timestamp),
+          title: row.leetcode_title,
+          type: "LEETCODE",
+          notesMarkdown,
+          tags: normalizeTags([
+            "leetcode",
+            "uber",
+            "hackerrank",
+            "company:uber",
+            "window:one-year",
+            "source:uber-hackerrank-derived",
+          ]),
+          links: dedupeLinks([{ label: "Problem", url: row.leetcode_link }]),
+          platform: "LeetCode",
+          problemLink: row.leetcode_link,
+          problemSlug: row.leetcode_slug,
+          difficulty: row.hackerrank_difficulty,
+          pattern: row.pattern,
+          leetcodeOutcome: "TODO",
+          metadata,
+          updatedAt: timestamp,
+        });
+
+    persistItem(db, nextItem);
+  }
+}
+
 function upsertItemDoc(db: Database.Database, itemId: string, content: string, updatedAt: string) {
   db.prepare(`
     insert into item_docs (item_id, content_markdown, checksum, updated_at)
@@ -1695,7 +1916,7 @@ function seedSystemDesignDocs(db: Database.Database) {
 }
 
 function defaultGoalDescription(): string {
-  return "Local SQLite sprint seeded from the curated frontend bank, Uber-ranked LeetCode list, and system design markdown library.";
+  return "Local SQLite sprint seeded from the curated frontend bank, Uber-ranked LeetCode list, derived Uber HackerRank mappings, and system design markdown library.";
 }
 
 function uberScore(item: PrepItem): number {
@@ -1761,16 +1982,25 @@ function seedDefaultGoal(db: Database.Database) {
 function ensureSeedData(db: Database.Database) {
   if (globalThis.__prepTrackerLocalDbSeeded__) return;
   const itemCount = db.prepare("select count(*) as count from items").get() as { count: number };
-  if ((itemCount.count ?? 0) === 0) {
-    const seedTransaction = db.transaction(() => {
-      seedFrontendBank(db);
+  const shouldBootstrap = (itemCount.count ?? 0) === 0;
+  const seedTransaction = db.transaction(() => {
+    seedFrontendBank(db);
+    if (shouldBootstrap) {
       seedUberRankedLeetcode(db);
+      seedUberHackerRankDerived(db);
       seedSystemDesignDocs(db);
       seedDefaultGoal(db);
-    });
-    seedTransaction();
-  }
+    }
+  });
+  seedTransaction();
   globalThis.__prepTrackerLocalDbSeeded__ = true;
+}
+
+function backfillUberHackerRankDerivedInternal(db: Database.Database) {
+  const tx = db.transaction(() => {
+    seedUberHackerRankDerived(db);
+  });
+  tx();
 }
 
 function currentSrsState(item: PrepItem) {
@@ -1802,6 +2032,40 @@ function buildReviewLog(row: ReviewRow): ReviewLog {
     previousReviewAt: row.previous_review_at,
     nextReviewAt: row.next_review_at,
     createdAt: row.created_at,
+  };
+}
+
+function buildMockInterviewProgress(row: MockInterviewProgressRow): MockInterviewProgress {
+  return {
+    questionId: row.question_id,
+    status: row.status,
+    reviewCount: row.review_count,
+    lastOutcome: row.last_outcome,
+    lastReviewedAt: row.last_reviewed_at,
+    completedAt: row.completed_at,
+    notesMarkdown: row.notes_markdown,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function buildMockInterviewReviewLog(row: MockInterviewReviewRow): MockInterviewReviewLog {
+  return {
+    id: row.id,
+    questionId: row.question_id,
+    outcome: row.outcome,
+    statusAfter: row.status_after,
+    notesMarkdown: row.notes_markdown,
+    createdAt: row.created_at,
+  };
+}
+
+function buildFrontendFocusProgress(row: FrontendFocusProgressRow): FrontendFocusProgress {
+  return {
+    questionId: row.question_id,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -1843,6 +2107,142 @@ export async function listItems(params: { q?: string; type?: ItemType | "ALL"; i
     .filter((item) => (params.shouldReviewOnly ? item.shouldReviewAgain : true))
     .filter((item) => (query ? searchTextForItem(item).includes(query) : true))
     .sort(compareItems);
+}
+
+export async function listMockInterviewProgress() {
+  const db = getDb();
+  const rows = db
+    .prepare("select * from mock_interview_progress order by updated_at desc, question_id asc")
+    .all() as MockInterviewProgressRow[];
+  return rows.map(buildMockInterviewProgress);
+}
+
+export async function listFrontendFocusProgress() {
+  const db = getDb();
+  const rows = db
+    .prepare("select * from frontend_focus_progress order by updated_at desc, question_id asc")
+    .all() as FrontendFocusProgressRow[];
+  return rows.map(buildFrontendFocusProgress);
+}
+
+export async function getFrontendFocusProgress(questionId: string) {
+  const db = getDb();
+  const row = db
+    .prepare("select * from frontend_focus_progress where question_id = ?")
+    .get(questionId) as FrontendFocusProgressRow | undefined;
+  return row ? buildFrontendFocusProgress(row) : null;
+}
+
+export async function upsertFrontendFocusProgress(questionId: string, input: FrontendFocusProgressUpdateInput) {
+  const db = getDb();
+  const existing = await getFrontendFocusProgress(questionId);
+  const timestamp = nowIso();
+
+  db.prepare(`
+    insert into frontend_focus_progress (question_id, status, created_at, updated_at)
+    values (?, ?, ?, ?)
+    on conflict(question_id) do update set
+      status = excluded.status,
+      updated_at = excluded.updated_at
+  `).run(questionId, input.status, existing?.createdAt ?? timestamp, timestamp);
+
+  return getFrontendFocusProgress(questionId);
+}
+
+export async function getMockInterviewProgress(questionId: string) {
+  const db = getDb();
+  const row = db
+    .prepare("select * from mock_interview_progress where question_id = ?")
+    .get(questionId) as MockInterviewProgressRow | undefined;
+  return row ? buildMockInterviewProgress(row) : null;
+}
+
+export async function listMockInterviewReviews(questionId: string) {
+  const db = getDb();
+  const rows = db
+    .prepare("select * from mock_interview_reviews where question_id = ? order by created_at desc")
+    .all(questionId) as MockInterviewReviewRow[];
+  return rows.map(buildMockInterviewReviewLog);
+}
+
+export async function upsertMockInterviewProgress(questionId: string, input: MockInterviewProgressUpdateInput) {
+  const db = getDb();
+  const existing = await getMockInterviewProgress(questionId);
+  const timestamp = nowIso();
+  const completedAt = input.status === "COMPLETED" ? existing?.completedAt ?? timestamp : null;
+
+  db.prepare(`
+    insert into mock_interview_progress (
+      question_id, status, review_count, last_outcome, last_reviewed_at, completed_at, notes_markdown, created_at, updated_at
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    on conflict(question_id) do update set
+      status = excluded.status,
+      completed_at = excluded.completed_at,
+      notes_markdown = excluded.notes_markdown,
+      updated_at = excluded.updated_at
+  `).run(
+    questionId,
+    input.status,
+    existing?.reviewCount ?? 0,
+    existing?.lastOutcome ?? null,
+    existing?.lastReviewedAt ?? null,
+    completedAt,
+    input.notesMarkdown ?? existing?.notesMarkdown ?? "",
+    existing?.createdAt ?? timestamp,
+    timestamp
+  );
+
+  return getMockInterviewProgress(questionId);
+}
+
+export async function addMockInterviewReview(questionId: string, input: MockInterviewReviewInput) {
+  const db = getDb();
+  const existing = await getMockInterviewProgress(questionId);
+  const timestamp = nowIso();
+  const completedAt = input.statusAfter === "COMPLETED" ? existing?.completedAt ?? timestamp : null;
+
+  db.prepare(`
+    insert into mock_interview_reviews (id, question_id, outcome, status_after, notes_markdown, created_at)
+    values (?, ?, ?, ?, ?, ?)
+  `).run(randomUUID(), questionId, input.outcome, input.statusAfter, input.notesMarkdown ?? "", timestamp);
+
+  db.prepare(`
+    insert into mock_interview_progress (
+      question_id, status, review_count, last_outcome, last_reviewed_at, completed_at, notes_markdown, created_at, updated_at
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    on conflict(question_id) do update set
+      status = excluded.status,
+      review_count = excluded.review_count,
+      last_outcome = excluded.last_outcome,
+      last_reviewed_at = excluded.last_reviewed_at,
+      completed_at = excluded.completed_at,
+      notes_markdown = excluded.notes_markdown,
+      updated_at = excluded.updated_at
+  `).run(
+    questionId,
+    input.statusAfter,
+    (existing?.reviewCount ?? 0) + 1,
+    input.outcome,
+    timestamp,
+    completedAt,
+    input.notesMarkdown ?? existing?.notesMarkdown ?? "",
+    existing?.createdAt ?? timestamp,
+    timestamp
+  );
+
+  return {
+    progress: await getMockInterviewProgress(questionId),
+    reviews: await listMockInterviewReviews(questionId),
+  };
+}
+
+export async function backfillUberHackerRankDerived() {
+  const db = getDb();
+  backfillUberHackerRankDerivedInternal(db);
+  return {
+    ok: true,
+    importedCount: UBER_HACKERRANK_DERIVED_IMPORT.length,
+  };
 }
 
 export async function getItem(id: string) {

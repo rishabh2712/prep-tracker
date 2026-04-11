@@ -94,10 +94,24 @@ npm run lint
 npm run reset:db
 ```
 
+## Chrome AI product review
+
+If you want a Chrome-based AI with website access to review the app like a lead product designer, use:
+
+- `/Users/rishabhbansal/Desktop/source/journey/uber-ai/prep/prompts/chrome-ai-product-lead-review.md`
+
+That prompt is written for live UI review of this local-first app and includes:
+
+- product context
+- route-by-route review order
+- required output sections
+- implementation-oriented UX critique guidance
+
 ## Main routes
 
 - `/` — workspace
 - `/frontend` — frontend bank
+- `/bps` — Uber phone-screen program
 - `/bank` — master bank
 - `/goals` — goal list
 - `/items/new` — create a new item

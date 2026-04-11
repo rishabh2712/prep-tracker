@@ -26,6 +26,18 @@ type FieldSpec = {
   href?: string | null;
 };
 
+type StudyTab = "prompt" | "coach";
+
+type MarkdownSection = {
+  heading: string | null;
+  content: string;
+};
+
+type StudyPanels = {
+  prompt: string;
+  coach: string;
+};
+
 async function parseError(response: Response): Promise<string> {
   try {
     const json = await response.json();
@@ -47,18 +59,106 @@ function normalizedMarkdown(value: string | null | undefined): string {
   return typeof value === "string" ? value.trim().replace(/\r\n/g, "\n") : "";
 }
 
+function stripMarkdownSection(markdown: string, heading: string): string {
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return markdown.replace(new RegExp(`(^|\\n)## ${escaped}\\n[\\s\\S]*?(?=\\n## |$)`, "g"), "$1").trim();
+}
+
+function sanitizedStudyMarkdown(value: string | null | undefined): string {
+  const normalized = normalizedMarkdown(value);
+  if (!normalized) return "";
+
+  const withoutPracticeBrief = stripMarkdownSection(normalized, "Practice Brief");
+  const withoutPersonalNotes = stripMarkdownSection(withoutPracticeBrief, "Personal Notes");
+  return withoutPersonalNotes.trim();
+}
+
+const COACH_SECTION_HEADINGS = new Set([
+  "What You'll Do",
+  "Why It Matters",
+  "What The Interviewer Is Probing",
+  "Interviewer Perspective",
+  "Preparation Context",
+  "Completion Checklist",
+  "Reveal Rubric",
+  "Hidden Rubric",
+  "Edge Cases / Failure Modes",
+  "Good Follow-Ups",
+  "Sources",
+]);
+
+function splitMarkdownSections(markdown: string): MarkdownSection[] {
+  if (!markdown.trim()) return [];
+
+  const matches = Array.from(markdown.matchAll(/^##\s+(.+?)\s*$/gm));
+  if (matches.length === 0) {
+    return [{ heading: null, content: markdown.trim() }];
+  }
+
+  const sections: MarkdownSection[] = [];
+
+  matches.forEach((match, index) => {
+    if (match.index === undefined) return;
+    const nextMatch = matches[index + 1];
+    const start = match.index;
+    const end = nextMatch?.index ?? markdown.length;
+    const chunk = markdown.slice(start, end).trim();
+    if (chunk) {
+      sections.push({ heading: match[1]?.trim() ?? null, content: chunk });
+    }
+  });
+
+  const firstMatch = matches[0];
+  if (firstMatch?.index && firstMatch.index > 0) {
+    const intro = markdown.slice(0, firstMatch.index).trim();
+    if (intro) {
+      sections.unshift({ heading: null, content: intro });
+    }
+  }
+
+  return sections;
+}
+
+function splitStudyPanels(markdown: string): StudyPanels {
+  const normalized = normalizedMarkdown(markdown);
+  if (!normalized) {
+    return { prompt: "", coach: "" };
+  }
+
+  const explicitCoachHeading = /^##\s+Interviewer Perspective\s*$/m.exec(normalized);
+  if (explicitCoachHeading?.index !== undefined) {
+    return {
+      prompt: normalized.slice(0, explicitCoachHeading.index).trim(),
+      coach: normalized.slice(explicitCoachHeading.index).trim(),
+    };
+  }
+
+  const sections = splitMarkdownSections(normalized);
+  if (sections.length === 0) {
+    return { prompt: "", coach: "" };
+  }
+
+  const promptSections = sections.filter((section) => !section.heading || !COACH_SECTION_HEADINGS.has(section.heading));
+  const coachSections = sections.filter((section) => section.heading && COACH_SECTION_HEADINGS.has(section.heading));
+
+  return {
+    prompt: promptSections.map((section) => section.content).join("\n\n").trim(),
+    coach: coachSections.map((section) => section.content).join("\n\n").trim(),
+  };
+}
+
 function badgeTone(kind: "type" | "state" | "mastery" | "due" | "deleted"): string {
   switch (kind) {
     case "type":
-      return "border-sky-300 bg-sky-100 text-sky-900";
+      return "border-slate-300 bg-slate-100 text-slate-900";
     case "state":
-      return "border-slate-300 bg-slate-200 text-slate-900";
+      return "border-slate-300 bg-slate-100 text-slate-900";
     case "mastery":
-      return "border-violet-300 bg-violet-100 text-violet-900";
+      return "border-slate-300 bg-slate-100 text-slate-900";
     case "due":
-      return "border-amber-300 bg-amber-100 text-amber-900";
+      return "border-amber-300 bg-amber-50 text-amber-900";
     case "deleted":
-      return "border-rose-300 bg-rose-100 text-rose-900";
+      return "border-rose-300 bg-rose-50 text-rose-900";
   }
 }
 
@@ -66,13 +166,12 @@ function Badge({ children, tone }: { children: ReactNode; tone: ReturnType<typeo
   return <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] ${tone}`}>{children}</span>;
 }
 
-function SummaryStat({ label, value, hint }: { label: string; value: string; hint: string }) {
+function SummaryMetric({ label, value }: { label: string; value: string }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3">
-      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-600">{label}</p>
-      <p className="mt-1 text-base font-semibold text-slate-950">{value}</p>
-      <p className="mt-1 text-xs text-slate-600">{hint}</p>
-    </article>
+    <div className="flex items-center gap-2">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</span>
+      <span className="text-sm font-medium text-slate-900">{value}</span>
+    </div>
   );
 }
 
@@ -86,9 +185,9 @@ function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <header className="mb-4 border-b border-slate-100 pb-4">
-        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+    <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-950/5">
+      <header className="mb-5">
+        <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
         {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}
       </header>
       {children}
@@ -161,6 +260,7 @@ export function ItemDetailClient({ itemId }: ItemDetailClientProps) {
   const [reviews, setReviews] = useState<ReviewLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [studyTab, setStudyTab] = useState<StudyTab>("prompt");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -192,6 +292,10 @@ export function ItemDetailClient({ itemId }: ItemDetailClientProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setStudyTab("prompt");
+  }, [itemId]);
 
   async function softDelete() {
     const response = await fetch(`/api/items/${itemId}`, { method: "DELETE" });
@@ -245,26 +349,31 @@ export function ItemDetailClient({ itemId }: ItemDetailClientProps) {
   const frontendTab = typeof metadata.frontendTab === "string" ? metadata.frontendTab : null;
   const roundTag = typeof metadata.roundTag === "string" ? metadata.roundTag : null;
   const priority = typeof metadata.priority === "string" ? metadata.priority : null;
+  const timebox = typeof metadata.timebox === "string" ? metadata.timebox : null;
+  const level = typeof metadata.level === "string" ? metadata.level : null;
   const studyGuideMarkdown = typeof metadata.studyGuideMarkdown === "string" ? metadata.studyGuideMarkdown : null;
-  const showFrontendBrief =
-    isFrontendSurface &&
-    hasText(studyGuideMarkdown) &&
-    normalizedMarkdown(studyGuideMarkdown) !== normalizedMarkdown(item.notesMarkdown);
+  const displayNotesMarkdown = sanitizedStudyMarkdown(item.notesMarkdown);
+  const fallbackStudyMarkdown = sanitizedStudyMarkdown(studyGuideMarkdown);
+  const primaryStudyMarkdown = displayNotesMarkdown || fallbackStudyMarkdown;
+  const studyPanels = splitStudyPanels(primaryStudyMarkdown || item.notesMarkdown);
+  const hasCoachNotes = hasText(studyPanels.coach);
+  const activeStudyTab: StudyTab = hasCoachNotes ? studyTab : "prompt";
 
   const quickFacts: FieldSpec[] = [
-    { label: "Confidence", value: item.confidence },
-    { label: "Frontend tab", value: frontendTab },
     { label: "Round", value: roundTag },
+    { label: "Time box", value: timebox },
+    { label: "Level", value: level },
+    { label: "Difficulty", value: item.difficulty },
+    { label: "Frontend tab", value: frontendTab },
     { label: "Priority", value: priority },
+    { label: "Confidence", value: item.confidence },
     { label: "Created", value: formatDate(item.createdAt) },
     { label: "Updated", value: formatDate(item.updatedAt) },
   ];
 
   const leetcodeFields: FieldSpec[] = [
-    { label: "Problem link", value: item.problemLink, href: item.problemLink },
     { label: "Platform", value: item.platform },
     { label: "Problem slug", value: item.problemSlug },
-    { label: "Difficulty", value: item.difficulty },
     { label: "Pattern", value: item.pattern },
     { label: "Outcome", value: item.leetcodeOutcome },
     { label: "Attempts", value: item.attemptCount?.toString() ?? null },
@@ -280,7 +389,7 @@ export function ItemDetailClient({ itemId }: ItemDetailClientProps) {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 pb-10">
-      <header className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <header className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-950/5">
         <div className="bg-gradient-to-r from-slate-50 via-white to-sky-50/70 p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-4xl">
@@ -290,7 +399,7 @@ export function ItemDetailClient({ itemId }: ItemDetailClientProps) {
 
               <div className="mt-4 flex flex-wrap gap-2">
                 <Badge tone={badgeTone("type")}>{typeLabel(item.type)}</Badge>
-                {item.isShared ? <Badge tone="border-emerald-300 bg-emerald-100 text-emerald-900">Shared bank</Badge> : null}
+                {item.isShared ? <Badge tone="border-slate-300 bg-slate-100 text-slate-900">Shared bank 🔒</Badge> : null}
                 <Badge tone={badgeTone("state")}>{item.state}</Badge>
                 <Badge tone={badgeTone("mastery")}>Mastery {item.mastery}</Badge>
                 <Badge tone={badgeTone("due")}>{dueNow ? "Due now" : "Not due"}</Badge>
@@ -298,9 +407,26 @@ export function ItemDetailClient({ itemId }: ItemDetailClientProps) {
               </div>
 
               <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950">{item.title}</h1>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                {roundTag ?? "Track the concept, keep notes in markdown, and review it with spaced repetition."}
-              </p>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Read the study brief, work the problem externally, then come back here to log the review outcome.</p>
+
+              <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl bg-slate-50/90 px-4 py-3">
+                <SummaryMetric
+                  label="Next review"
+                  value={item.nextReviewAt ? `${formatDate(item.nextReviewAt)} (${formatRelative(item.nextReviewAt)})` : "Not scheduled"}
+                />
+                <SummaryMetric
+                  label="Last reviewed"
+                  value={item.lastReviewedAt ? `${formatDate(item.lastReviewedAt)} (${formatRelative(item.lastReviewedAt)})` : "No reviews yet"}
+                />
+                <SummaryMetric
+                  label="Cadence"
+                  value={`${item.reviewIntervalDays} day${item.reviewIntervalDays === 1 ? "" : "s"}`}
+                />
+                <SummaryMetric
+                  label="Activity"
+                  value={isLeetcode ? formatDate(item.lastSolvedAt ?? item.lastAttemptedAt) : formatDate(item.updatedAt)}
+                />
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -314,6 +440,9 @@ export function ItemDetailClient({ itemId }: ItemDetailClientProps) {
                   Open Problem
                 </a>
               ) : null}
+              <a href="#log-review" className="rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
+                Jump to Review
+              </a>
               {canEditStructure ? (
                 <Link
                   href={`/items/${item.id}/edit`}
@@ -321,11 +450,7 @@ export function ItemDetailClient({ itemId }: ItemDetailClientProps) {
                 >
                   Edit
                 </Link>
-              ) : (
-                <span className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-500">
-                  Shared content is read-only
-                </span>
-              )}
+              ) : null}
 
               {!item.deletedAt ? (
                 <button
@@ -364,34 +489,6 @@ export function ItemDetailClient({ itemId }: ItemDetailClientProps) {
             </div>
           ) : null}
 
-          {item.isShared ? (
-            <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
-              This item comes from the shared bank. Review state, notes, and progress stay personal, but the canonical prompt stays read-only.
-            </div>
-          ) : null}
-
-          <div className="mt-6 grid gap-3 lg:grid-cols-4">
-            <SummaryStat
-              label="Next review"
-              value={formatDate(item.nextReviewAt)}
-              hint={item.nextReviewAt ? formatRelative(item.nextReviewAt) : "Not scheduled yet"}
-            />
-            <SummaryStat
-              label="Last reviewed"
-              value={formatDate(item.lastReviewedAt)}
-              hint={item.lastReviewedAt ? formatRelative(item.lastReviewedAt) : "No reviews logged yet"}
-            />
-            <SummaryStat
-              label="Cadence"
-              value={`${item.reviewIntervalDays} day${item.reviewIntervalDays === 1 ? "" : "s"}`}
-              hint={item.shouldReviewAgain ? "Will stay in the active review loop" : "Marked stable for now"}
-            />
-            <SummaryStat
-              label="Activity"
-              value={isLeetcode ? formatDate(item.lastSolvedAt ?? item.lastAttemptedAt) : formatDate(item.updatedAt)}
-              hint={isLeetcode ? "Last solved / attempted" : "Last updated"}
-            />
-          </div>
         </div>
       </header>
 
@@ -399,29 +496,80 @@ export function ItemDetailClient({ itemId }: ItemDetailClientProps) {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_340px]">
         <main className="space-y-6">
-          {showFrontendBrief ? (
-            <SectionCard
-              title="Question Brief"
-              description="Seeded interview guidance for this frontend-bank item. Keep your own working notes in the section below."
-            >
-              <MarkdownRenderer
-                content={studyGuideMarkdown}
-                tone="light"
-                className="text-[0.95rem] leading-7 text-slate-800"
-              />
-            </SectionCard>
-          ) : null}
-
           <SectionCard
-            title={hasText(item.notesMarkdown) ? "Notes & Guide" : "Notes"}
+            title={hasCoachNotes ? "Execution Surface" : hasText(primaryStudyMarkdown) ? "Study Guide" : "Notes"}
             description={
-              showFrontendBrief
-                ? "Your working notes, edits, and personalized prep write-up for this item."
-                : "Markdown notes, source context, and your current prep write-up for this item."
+              hasCoachNotes
+                ? "Stay in prompt mode for the cold-start rep, then switch to coach notes after your attempt."
+                : "Keep the reading flow tight: understand the prompt, then move into your practice loop."
             }
           >
-            <MarkdownRenderer content={item.notesMarkdown} tone="light" className="text-[0.95rem] leading-7 text-slate-800" />
+            {hasCoachNotes ? (
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-4">
+                  <button
+                    type="button"
+                    onClick={() => setStudyTab("prompt")}
+                    className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${
+                      activeStudyTab === "prompt" ? "bg-slate-950 text-white shadow-sm" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    Prompt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStudyTab("coach")}
+                    className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold transition ${
+                      activeStudyTab === "coach" ? "bg-slate-950 text-white shadow-sm" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    Coach Notes
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${
+                        activeStudyTab === "coach" ? "bg-white/10 text-slate-200" : "bg-slate-200 text-slate-600"
+                      }`}
+                    >
+                      Read after attempt
+                    </span>
+                  </button>
+                </div>
+
+                {activeStudyTab === "prompt" ? (
+                  <div className="rounded-3xl bg-slate-50/90 p-5 ring-1 ring-slate-200">
+                    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Problem statement</p>
+                        <h3 className="mt-1 text-lg font-semibold text-slate-950">Cold-start prompt</h3>
+                      </div>
+                      <p className="max-w-md text-sm leading-6 text-slate-500">
+                        Read this like a HackerRank or CoderPad spec. Stay here for the solve, then switch to coach notes for the debrief.
+                      </p>
+                    </div>
+                    <MarkdownRenderer content={studyPanels.prompt} tone="light" className="text-[0.95rem] leading-7 text-slate-800" />
+                  </div>
+                ) : (
+                  <div className="rounded-3xl bg-white p-5 ring-1 ring-slate-200">
+                    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Interviewer perspective</p>
+                        <h3 className="mt-1 text-lg font-semibold text-slate-950">Use this after the rep</h3>
+                      </div>
+                      <p className="max-w-md text-sm leading-6 text-slate-500">
+                        This tab holds the meta-layer: what Uber is probing, grading rubrics, common bugs, and follow-up talking points.
+                      </p>
+                    </div>
+                    <MarkdownRenderer content={studyPanels.coach} tone="light" className="text-[0.95rem] leading-7 text-slate-800" />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <MarkdownRenderer content={primaryStudyMarkdown || item.notesMarkdown} tone="light" className="text-[0.95rem] leading-7 text-slate-800" />
+            )}
           </SectionCard>
+
+          <div id="log-review">
+            <ReviewForm itemId={itemId} onDone={() => void load()} />
+          </div>
 
           {isLeetcode ? (
             <SectionCard title="LeetCode Snapshot" description="Problem metadata, attempts, and your latest solution state.">
@@ -461,8 +609,6 @@ export function ItemDetailClient({ itemId }: ItemDetailClientProps) {
             </SectionCard>
           ) : null}
 
-          <ReviewForm itemId={itemId} onDone={() => void load()} />
-
           <SectionCard title="Review History" description="Each review records the outcome, the next scheduled review, and any notes you wrote at the time.">
             {reviews.length === 0 ? (
               <p className="text-sm text-slate-500">No reviews yet.</p>
@@ -497,22 +643,10 @@ export function ItemDetailClient({ itemId }: ItemDetailClientProps) {
           </SectionCard>
         </main>
 
-      <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
-          <SectionCard title="Quick Facts" description="Secondary tracker metadata for this item.">
+        <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+          <SectionCard title="Quick Facts" description="Only the study-relevant metadata that helps you frame the session.">
             <FactList fields={quickFacts} />
           </SectionCard>
-
-          {item.tags.length > 0 ? (
-            <SectionCard title="Tags" description="Useful for filtering and tracing how this item was seeded into the tracker.">
-              <div className="flex flex-wrap gap-2">
-                {item.tags.map((tag) => (
-                  <span key={tag} className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-900">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </SectionCard>
-          ) : null}
 
           {item.links.length > 0 ? (
             <SectionCard title="Links" description="Open the original source material or the canonical problem directly from here.">

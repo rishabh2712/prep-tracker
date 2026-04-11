@@ -1,0 +1,306 @@
+{
+  "programId": "uber-bps-2026",
+  "title": "Uber Phone Screen / BPS Program",
+  "description": "A focused 10-session track for Uber's frontend phone screen: async JavaScript, graph-heavy DSA, and explain-back discipline under a 45-minute timer.",
+  "roundScript": [
+    {
+      "key": "clarify",
+      "label": "Clarify",
+      "minutes": 5,
+      "prompt": "Restate the problem, confirm the output, and name the edge cases before you code."
+    },
+    {
+      "key": "implement",
+      "label": "Implement",
+      "minutes": 25,
+      "prompt": "Write the cleanest solution you can while narrating the invariant and main tradeoffs."
+    },
+    {
+      "key": "teach-back",
+      "label": "Teach back",
+      "minutes": 10,
+      "prompt": "Explain the final approach in plain English and justify why the brute-force version is too slow."
+    },
+    {
+      "key": "review",
+      "label": "Review",
+      "minutes": 5,
+      "prompt": "State complexity, common bugs, and the one improvement you would make with extra time."
+    }
+  ],
+  "extraQuestions": [
+    {
+      "id": "rate-limiter",
+      "title": "Asynchronous API Rate Limiter",
+      "category": "javascript",
+      "context": "APIs often have strict rate limits to prevent abuse. Frontend applications sometimes need to enforce these limits on the client side before sending out requests, especially in scenarios with heavy real-time polling or user-driven event spam.",
+      "problemStatement": "Implement a rate limiter utility on top of a simulated API endpoint. The limiter must cap requests to `N` requests per `M` milliseconds using a strictly trailing rolling-window approach.",
+      "requirements": [
+        "Create a function `rateLimit(apiCall, maxRequests, timeWindow)`.",
+        "Allow the call only when the number of requests in the trailing `timeWindow` is less than `maxRequests`.",
+        "Choose one overflow behavior and implement it cleanly: queue, reject, or delay until the window opens again.",
+        "Keep timestamp storage bounded by evicting stale entries as the window moves.",
+        "Make the behavior explicit for failed, cancelled, or timed-out async calls."
+      ],
+      "exampleMarkdown": "### Example Usage\n\n```javascript\nconst fetchWithLimit = rateLimit(fakeApiCall, 3, 60_000);\n\nawait fetchWithLimit(\"/users\");\nawait fetchWithLimit(\"/rides\");\nawait fetchWithLimit(\"/cities\");\nawait fetchWithLimit(\"/drivers\");\n```\n\n**Expected design discussion:**\n- What happens to the 4th call if the window is already full?\n- Does a failed request still count against the rolling window?\n- How do you avoid unbounded memory growth as calls continue over time?",
+      "followUps": [
+        "How would you change the implementation if queued requests should resolve in FIFO order?",
+        "What changes if the rate limit is enforced per user instead of globally?",
+        "Would you count only successful requests or every attempted request? Defend the contract.",
+        "How would you expose observability or debugging information to the caller?"
+      ],
+      "hints": [
+        "You will likely need an array or queue of timestamps representing admitted requests.",
+        "The important detail is the trailing window, not fixed bucket boundaries.",
+        "If you queue overflow calls, think about fairness and when they should re-check the window."
+      ],
+      "relatedBankIds": ["P-09", "P-10", "S-02"]
+    },
+    {
+      "id": "progress-bars",
+      "title": "Throttled Progress Bars UI",
+      "category": "react",
+      "context": "Handling DOM updates alongside asynchronous timing events is a core frontend skill. This problem tests queue management, rendering discipline, and whether you can keep timing logic separate from display state.",
+      "problemStatement": "Build an interactive UI containing a single `Add Progress Bar` button and a container for rendering progress bars. Clicking the button should create new bars, but only a fixed number of bars may actively animate at the same time.",
+      "requirements": [
+        "Clicking the button should add a new progress bar to the page.",
+        "Each active progress bar should animate smoothly from `0%` to `100%` over a fixed duration.",
+        "Enforce a strict concurrency limit such as 3 active bars at once.",
+        "If the limit is reached, newly added bars must wait in a queue and start only when a slot opens.",
+        "Make completion handling reliable so exactly one queued bar starts when one active bar finishes."
+      ],
+      "exampleMarkdown": "### Example Scenario\n\n- Concurrency limit = `3`\n- The user clicks `Add Progress Bar` 5 times in quick succession\n- Bars `1`, `2`, and `3` should begin immediately\n- Bars `4` and `5` should remain queued\n- As soon as bar `1` completes, bar `4` should begin\n- As soon as bar `2` completes, bar `5` should begin",
+      "followUps": [
+        "How would you represent `queued`, `active`, and `completed` bars in state?",
+        "How would you avoid timer leaks if the component unmounts mid-animation?",
+        "How would you make the animation accessible for reduced-motion users?",
+        "If the interviewer asked for pause/resume support, what would you change first?"
+      ],
+      "hints": [
+        "Separate queue orchestration from the render representation of each bar.",
+        "You can detect completion either through a timer contract or an animation-end signal, but keep it deterministic.",
+        "Think about what state must be canonical versus what can be derived."
+      ],
+      "relatedBankIds": ["S-04", "S-01", "A-06"]
+    },
+    {
+      "id": "overlapping-circles",
+      "title": "Overlapping Circles App",
+      "category": "react",
+      "context": "This is a classic geometry plus DOM question. It tests whether you can model visual state cleanly, do collision math correctly, and update the UI without turning the implementation into spaghetti state.",
+      "problemStatement": "Create a web application where each click on the drawing surface adds a circle with a fixed radius centered at the cursor position. The application must detect whether the newly drawn circle overlaps any existing circles.",
+      "requirements": [
+        "Listen for click events on the drawing surface.",
+        "Render a circle with a fixed radius centered on the click coordinates.",
+        "Track existing circle centers so overlap detection does not depend on reading from the DOM.",
+        "Two circles overlap when the distance between their centers is less than twice the radius.",
+        "Visually indicate overlapping circles without losing previously drawn circles."
+      ],
+      "exampleMarkdown": "### Example Scenario\n\n- Radius = `50px`\n- Existing circle center = `(100, 100)`\n- New click = `(160, 100)`\n- Distance between centers = `60`\n- Since `60 < 100`, the circles overlap and should be visually marked",
+      "followUps": [
+        "How would you optimize collision checks if thousands of circles are drawn?",
+        "Would you compute distance directly or compare squared distances? Why?",
+        "How would you prevent circles from rendering partially off-screen?",
+        "If the interviewer asked for undo support, what state shape would you choose?"
+      ],
+      "hints": [
+        "Keep the canonical state as circle centers and ids, not DOM measurements.",
+        "The geometry condition can be checked with distance or squared distance.",
+        "Try to separate detection from rendering so the logic stays testable."
+      ],
+      "relatedBankIds": []
+    },
+    {
+      "id": "map-async-limit",
+      "title": "Asynchronous Map with Concurrency Limit (`mapAsyncLimit`)",
+      "category": "javascript",
+      "context": "Processing large arrays of asynchronous tasks with `Promise.all` can overwhelm the browser or network. This problem tests whether you can coordinate bounded concurrency while preserving output order.",
+      "problemStatement": "Write a JavaScript utility `mapAsyncLimit(iterable, iteratee, limit)` that behaves like `Promise.all`, but never runs more than `limit` asynchronous operations at once.",
+      "requirements": [
+        "Accept an array of items, an async callback `iteratee`, and a positive concurrency limit.",
+        "Start processing items immediately up to the concurrency limit.",
+        "As soon as one operation finishes, automatically start the next pending item.",
+        "Resolve with an array of results in the exact same order as the input items.",
+        "Define a clear failure strategy instead of leaving error behavior ambiguous."
+      ],
+      "exampleMarkdown": "### Example Usage\n\n```javascript\nconst result = await mapAsyncLimit(\n  [1, 2, 3, 4, 5],\n  async (value) => {\n    await delay(100 * value);\n    return value * 10;\n  },\n  2\n);\n\nconsole.log(result); // [10, 20, 30, 40, 50]\n```\n\n**Important:**\n- Completion order may differ from input order\n- The returned result array must still preserve input ordering",
+      "followUps": [
+        "What happens if one task rejects while others are still in flight?",
+        "How would you support cancellation once execution has started?",
+        "How would you generalize this into a reusable task queue class?",
+        "What invariant would you say out loud before coding?"
+      ],
+      "hints": [
+        "Track active work count separately from output ordering.",
+        "Results are easiest to preserve if you write into pre-sized indexed slots.",
+        "Make sure the final resolve or reject happens exactly once."
+      ],
+      "relatedBankIds": ["J-01", "S-01"]
+    },
+    {
+      "id": "data-batcher",
+      "title": "Data Batching Utility with Timeout",
+      "category": "javascript",
+      "context": "In complex frontend applications, we often need to send analytics events, user interactions, or logs to a backend. Sending a request for every event is wasteful, so we batch events by size and by time.",
+      "problemStatement": "Create a JavaScript utility class or closure called `DataBatcher` that groups individual data entries together and sends them to a provided callback function based on two conditions: batch size and a time limit.",
+      "requirements": [
+        "Initialize the utility with `callback(batchedData)`, `batchSize`, and `timeout` in milliseconds.",
+        "Expose an `add(data)` method that pushes new entries into the current batch.",
+        "As soon as the queue reaches `batchSize`, immediately invoke the callback, clear the queue, and restart the timer.",
+        "If `timeout` expires before the queue fills, invoke the callback with the partial batch, clear the queue, and restart the timer.",
+        "Do not invoke the callback when the timer fires and the queue is empty."
+      ],
+      "exampleMarkdown": "### Example Usage\n\n```javascript\nconst sendToServer = (batch) => {\n  console.log(`Sending batch of ${batch.length} items:`, batch);\n};\n\nconst batcher = new DataBatcher(sendToServer, 3, 2000);\n\nbatcher.add(\"Event 1\");\nbatcher.add(\"Event 2\");\nbatcher.add(\"Event 3\");\n// Immediately sends [\"Event 1\", \"Event 2\", \"Event 3\"]\n\nsetTimeout(() => {\n  batcher.add(\"Event 4\");\n  batcher.add(\"Event 5\");\n}, 500);\n// After the timeout window, sends [\"Event 4\", \"Event 5\"]\n```",
+      "followUps": [
+        "What happens if the callback itself throws or returns a rejected promise?",
+        "How do you avoid duplicate flushes when a size-trigger and timer-trigger race each other?",
+        "Would you start the timer on initialization or only when the first item arrives?",
+        "How would you add a manual `flush()` method without breaking the timing contract?"
+      ],
+      "hints": [
+        "You will need both a queue and a timer id.",
+        "Whenever a size-triggered flush happens, remember to clear the existing timer before re-arming.",
+        "The empty-queue case is part of the contract, not an afterthought."
+      ],
+      "relatedBankIds": ["J-08", "S-01", "P-15"]
+    }
+  ],
+  "mockSets": [
+    {
+      "id": "mock-js-core",
+      "title": "JavaScript Core Mock",
+      "description": "Core Uber-style JavaScript and async reps from the full bank.",
+      "questionIds": ["P-04", "P-08", "P-09", "P-10", "P-11", "P-12", "P-15", "J-01", "J-03", "J-08", "rate-limiter", "map-async-limit", "data-batcher"]
+    },
+    {
+      "id": "mock-react-core",
+      "title": "React + UI Mock",
+      "description": "React reasoning and machine-coding style reps from the Uber frontend bank.",
+      "questionIds": ["R-01", "R-04", "R-08", "R-09", "R-10", "R-12", "S-01", "S-04", "S-05", "S-06", "S-07", "S-08", "progress-bars", "overlapping-circles"]
+    },
+    {
+      "id": "mock-dsa-core",
+      "title": "DSA Core Mock",
+      "description": "The highest-signal Uber DSA reps from the bank.",
+      "questionIds": ["D-04", "D-05", "D-06", "D-07", "D-08", "D-09", "D-11", "D-12", "DX-01", "DX-02"]
+    },
+    {
+      "id": "mock-bps-mixed",
+      "title": "Mixed Uber BPS Mock",
+      "description": "A mixed set across JavaScript, React, and DSA for a realistic Uber prep loop.",
+      "questionIds": ["P-04", "J-01", "P-11", "R-10", "S-04", "D-06", "DX-02", "D-09", "data-batcher", "progress-bars"]
+    }
+  ],
+  "sessions": [
+    {
+      "id": "BPS-01",
+      "title": "Runtime + async ordering",
+      "goal": "Reset your mental model of the event loop so you can explain async behavior without guessing.",
+      "roundFocus": "Business Phone Screen",
+      "timeboxMinutes": 45,
+      "exitCriteria": "Predict execution order cleanly, explain promise settlement correctly, and narrate failure paths with confidence.",
+      "whyThisMatters": "Uber phone screens often hide the real test inside JavaScript ordering and async semantics, not UI trivia.",
+      "primaryBankId": "P-04",
+      "supportBankIds": ["P-05", "P-06"]
+    },
+    {
+      "id": "BPS-02",
+      "title": "Control utilities",
+      "goal": "Move from event-loop theory to the core utility patterns that show up in Uber frontend screens.",
+      "roundFocus": "Business Phone Screen",
+      "timeboxMinutes": 45,
+      "exitCriteria": "Choose debounce vs throttle quickly, justify retry strategy, and explain timing behavior clearly.",
+      "whyThisMatters": "A lot of frontend elimination rounds are really asking whether you understand timing, retries, and callback control under pressure.",
+      "primaryBankId": "P-08",
+      "supportBankIds": ["P-09", "P-10"]
+    },
+    {
+      "id": "BPS-03",
+      "title": "Request correctness",
+      "goal": "Practice the async correctness patterns that stop UI flows from returning stale, duplicated, or unsafe results.",
+      "roundFocus": "Business Phone Screen",
+      "timeboxMinutes": 45,
+      "exitCriteria": "Explain how you prevent stale overwrites, dedupe inflight requests, and wrap fetch behavior safely.",
+      "whyThisMatters": "Senior frontend screens reward engineers who make networked UI flows correct before they make them fancy.",
+      "primaryBankId": "P-11",
+      "supportBankIds": ["P-12", "P-15"]
+    },
+    {
+      "id": "BPS-04",
+      "title": "Uber async prompt I",
+      "goal": "Run a realistic phone-screen async utility with bounded concurrency and a clear callback contract.",
+      "roundFocus": "Business Phone Screen",
+      "timeboxMinutes": 45,
+      "exitCriteria": "Implement bounded parallelism, preserve output ordering, and explain completion/error semantics without hand-waving.",
+      "whyThisMatters": "This is the closest warm-up to the exact Uber-style utility prompt: practical concurrency, not abstract trivia.",
+      "primaryBankId": "J-01",
+      "supportBankIds": ["P-07"]
+    },
+    {
+      "id": "BPS-05",
+      "title": "Uber async prompt II",
+      "goal": "Handle the harder async-caching mechanics that usually separate a solid answer from a shaky one.",
+      "roundFocus": "Business Phone Screen",
+      "timeboxMinutes": 45,
+      "exitCriteria": "Explain dedupe, cache correctness, and microtask batching in a way that sounds intentional and production-ready.",
+      "whyThisMatters": "Memoization and same-tick batching reveal whether you really understand the JavaScript runtime or only know the surface API.",
+      "primaryBankId": "J-03",
+      "supportBankIds": ["J-08"]
+    },
+    {
+      "id": "BPS-06",
+      "title": "Uber async hard mode",
+      "goal": "Practice the hardest async orchestration rep in the bank so normal phone-screen prompts feel smaller.",
+      "roundFocus": "Business Phone Screen",
+      "timeboxMinutes": 45,
+      "exitCriteria": "Model dependencies clearly, coordinate async work deterministically, and explain failure propagation like a senior engineer.",
+      "whyThisMatters": "If you can stay calm in this dependency executor, simpler Uber async prompts stop feeling chaotic.",
+      "primaryBankId": "J-02",
+      "supportBankIds": ["J-04"]
+    },
+    {
+      "id": "BPS-07",
+      "title": "Graph foundations",
+      "goal": "Sharpen the graph patterns that frequently appear in coding screens and justify them out loud.",
+      "roundFocus": "Coding 1 (DSA)",
+      "timeboxMinutes": 45,
+      "exitCriteria": "Explain topo-sort invariants cleanly and move from brute force to graph modeling without drifting.",
+      "whyThisMatters": "Course Schedule-style graph reasoning is a high-signal DSA filter for Uber and shows whether you can model dependencies cleanly.",
+      "primaryBankId": "D-06",
+      "supportBankIds": ["D-07"]
+    },
+    {
+      "id": "BPS-08",
+      "title": "Graph modeling",
+      "goal": "Practice choosing the right graph representation before writing code.",
+      "roundFocus": "Coding 1 (DSA)",
+      "timeboxMinutes": 45,
+      "exitCriteria": "Translate the story into the right graph, choose BFS vs shortest path correctly, and defend the invariant.",
+      "whyThisMatters": "Uber-style graph rounds often reward clean modeling first and code second; this is where many candidates lose clarity.",
+      "primaryBankId": "DX-02",
+      "supportBankIds": ["D-08"]
+    },
+    {
+      "id": "BPS-09",
+      "title": "Hard frontier",
+      "goal": "Tackle one union-find problem and one deque-heavy problem so the hard edge of the screen feels familiar.",
+      "roundFocus": "Coding 1 (DSA)",
+      "timeboxMinutes": 45,
+      "exitCriteria": "State the data-structure invariant, rule out the naive approach, and keep the implementation calm under pressure.",
+      "whyThisMatters": "These are the kinds of harder screens where raw confidence comes from pattern recognition and precise explanation.",
+      "primaryBankId": "D-09",
+      "supportBankIds": ["D-13"]
+    },
+    {
+      "id": "BPS-10",
+      "title": "Final mixed mock",
+      "goal": "Finish with a mixed-pressure mock that forces both crisp modeling and a clean teach-back.",
+      "roundFocus": "Business Phone Screen + Coding 1",
+      "timeboxMinutes": 45,
+      "exitCriteria": "Drive the round like a senior candidate: clarify first, code cleanly, and teach the solution back simply.",
+      "whyThisMatters": "The final rep should feel like a real Uber conversation: not just solving, but leading the interviewer through your reasoning.",
+      "primaryBankId": "D-12",
+      "supportBankIds": ["J-01"]
+    }
+  ]
+}

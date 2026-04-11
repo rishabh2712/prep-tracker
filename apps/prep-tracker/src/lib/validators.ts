@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
   CONFIDENCE_LEVELS,
+  FRONTEND_FOCUS_STATUSES,
   ITEM_STATES,
   ITEM_TYPES,
   LEETCODE_OUTCOMES,
   MASTERY_LEVELS,
+  MOCK_INTERVIEW_STATUSES,
   REVIEW_OUTCOMES,
 } from "@/lib/types";
 
@@ -202,6 +204,27 @@ export const goalSessionDeleteSchema = z.object({
   sessionId: z.string().uuid(),
 });
 
+export const bpsChecklistUpdateSchema = z.object({
+  programId: z.string().trim().min(1),
+  sessionId: z.string().trim().min(1),
+  rubricReviewed: z.boolean(),
+});
+
+export const mockInterviewProgressUpdateSchema = z.object({
+  status: z.enum(MOCK_INTERVIEW_STATUSES),
+  notesMarkdown: z.string().optional().default(""),
+});
+
+export const mockInterviewReviewSchema = z.object({
+  outcome: z.enum(REVIEW_OUTCOMES),
+  statusAfter: z.enum(MOCK_INTERVIEW_STATUSES),
+  notesMarkdown: z.string().optional().default(""),
+});
+
+export const frontendFocusProgressUpdateSchema = z.object({
+  status: z.enum(FRONTEND_FOCUS_STATUSES),
+});
+
 export const agentIngestSchema = z.object({
   type: z.enum(["LEETCODE", "SYSTEM_DESIGN"]),
   title: z.string().trim().min(1),
@@ -231,3 +254,7 @@ export type GoalTargetDeleteInput = z.infer<typeof goalTargetDeleteSchema>;
 export type GoalTargetReplaceInput = z.infer<typeof goalTargetReplaceSchema>;
 export type GoalSessionCreateInput = z.infer<typeof goalSessionCreateSchema>;
 export type GoalSessionDeleteInput = z.infer<typeof goalSessionDeleteSchema>;
+export type BpsChecklistUpdateInput = z.infer<typeof bpsChecklistUpdateSchema>;
+export type MockInterviewProgressUpdateInput = z.infer<typeof mockInterviewProgressUpdateSchema>;
+export type MockInterviewReviewInput = z.infer<typeof mockInterviewReviewSchema>;
+export type FrontendFocusProgressUpdateInput = z.infer<typeof frontendFocusProgressUpdateSchema>;

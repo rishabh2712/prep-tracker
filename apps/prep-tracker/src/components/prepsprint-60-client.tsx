@@ -15,6 +15,7 @@ type NotesTab = "NOTES" | "RUBRIC";
 type PatternSort = "FREQUENCY" | "COMPLETION";
 type DrawerOutcome = "AGAIN" | "HARD" | "GOOD" | "EASY";
 type FrequencyWindow = "ALL" | "THIRTY_DAYS" | "THREE_MONTHS" | "SIX_MONTHS" | "MORE_THAN_SIX_MONTHS";
+type LeetcodeStatusFilter = "ALL" | "UNSOLVED";
 
 type NotesDoc = {
   content: string;
@@ -102,6 +103,10 @@ function frequencyWindowToMetadataKey(window: FrequencyWindow): string | null {
 
 function isFrequencyWindow(value: string | null): value is FrequencyWindow {
   return FREQUENCY_WINDOW_OPTIONS.some((option) => option.value === value);
+}
+
+function isLeetcodeStatusFilter(value: string | null): value is LeetcodeStatusFilter {
+  return value === "ALL" || value === "UNSOLVED";
 }
 
 function frequencyForWindow(item: PrepItem, window: FrequencyWindow): number {
@@ -247,6 +252,7 @@ export function PrepSprint60Client() {
 
   const [companyFilter, setCompanyFilter] = useState<string>("ALL");
   const [frequencyWindow, setFrequencyWindow] = useState<FrequencyWindow>("ALL");
+  const [leetcodeStatusFilter, setLeetcodeStatusFilter] = useState<LeetcodeStatusFilter>("ALL");
   const [patternSort, setPatternSort] = useState<PatternSort>("FREQUENCY");
   const [expandedPatterns, setExpandedPatterns] = useState<Record<string, boolean>>({});
 
@@ -310,14 +316,18 @@ export function PrepSprint60Client() {
         : "ALL";
     const fromWindowRaw = searchParams.get("window");
     const nextWindow = isFrequencyWindow(fromWindowRaw) ? fromWindowRaw : "ALL";
+    const fromStatusRaw = searchParams.get("status");
+    const nextStatus = isLeetcodeStatusFilter(fromStatusRaw) ? fromStatusRaw : "ALL";
 
     setCompanyFilter((prev) => (prev === nextCompany ? prev : nextCompany));
     setFrequencyWindow((prev) => (prev === nextWindow ? prev : nextWindow));
+    setLeetcodeStatusFilter((prev) => (prev === nextStatus ? prev : nextStatus));
   }, [searchParams, companyOptions]);
 
-  function applyLeetcodeFilters(nextCompany: string, nextWindow: FrequencyWindow) {
+  function applyLeetcodeFilters(nextCompany: string, nextWindow: FrequencyWindow, nextStatus: LeetcodeStatusFilter) {
     setCompanyFilter(nextCompany);
     setFrequencyWindow(nextWindow);
+    setLeetcodeStatusFilter(nextStatus);
     const params = new URLSearchParams(searchParams.toString());
     if (nextCompany === "ALL") {
       params.delete("company");
@@ -328,6 +338,11 @@ export function PrepSprint60Client() {
       params.delete("window");
     } else {
       params.set("window", nextWindow);
+    }
+    if (nextStatus === "ALL") {
+      params.delete("status");
+    } else {
+      params.set("status", nextStatus);
     }
     const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
     router.replace(nextUrl, { scroll: false });
@@ -347,13 +362,15 @@ export function PrepSprint60Client() {
     const byWindow =
       frequencyWindow === "ALL" ? byCompany : byCompany.filter((item) => frequencyForWindow(item, frequencyWindow) > 0);
 
-    return [...byWindow].sort((a, b) => {
+    const byStatus = leetcodeStatusFilter === "UNSOLVED" ? byWindow.filter((item) => !isLeetcodeSolved(item)) : byWindow;
+
+    return [...byStatus].sort((a, b) => {
       const af = itemFrequency(a, companyFilter, frequencyWindow);
       const bf = itemFrequency(b, companyFilter, frequencyWindow);
       if (bf !== af) return bf - af;
       return a.title.localeCompare(b.title);
     });
-  }, [leetcodeUniverse, companyFilter, frequencyWindow]);
+  }, [leetcodeUniverse, companyFilter, frequencyWindow, leetcodeStatusFilter]);
 
   const patternGroups = useMemo(() => {
     const map = new Map<string, PrepItem[]>();
@@ -1036,6 +1053,7 @@ export function PrepSprint60Client() {
                     <p className="mt-1 text-xl font-semibold text-zinc-100">{leetcodeSolvedStats.inViewTotal}</p>
                     <p className="mt-1 text-[11px] text-zinc-500">
                       {companyFilter === "ALL" ? "All companies" : `${companyFilter} filter`} • {leetcodeSolvedStats.total} total in bank
+                      {leetcodeStatusFilter === "UNSOLVED" ? " • unsolved only" : ""}
                     </p>
                   </article>
                   <article className="rounded-lg border border-emerald-700/40 bg-emerald-950/20 p-3">
@@ -1060,7 +1078,7 @@ export function PrepSprint60Client() {
                       <div className="flex flex-wrap gap-2 text-xs">
                         <select
                           value={companyFilter}
-                          onChange={(event) => applyLeetcodeFilters(event.target.value, frequencyWindow)}
+                          onChange={(event) => applyLeetcodeFilters(event.target.value, frequencyWindow, leetcodeStatusFilter)}
                           className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
                         >
                           {companyOptions.map((option) => (
@@ -1071,7 +1089,9 @@ export function PrepSprint60Client() {
                         </select>
                         <select
                           value={frequencyWindow}
-                          onChange={(event) => applyLeetcodeFilters(companyFilter, event.target.value as FrequencyWindow)}
+                          onChange={(event) =>
+                            applyLeetcodeFilters(companyFilter, event.target.value as FrequencyWindow, leetcodeStatusFilter)
+                          }
                           className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100"
                         >
                           {FREQUENCY_WINDOW_OPTIONS.map((option) => (
@@ -1080,6 +1100,21 @@ export function PrepSprint60Client() {
                             </option>
                           ))}
                         </select>
+                        <label className="flex items-center gap-2 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-zinc-100">
+                          <input
+                            type="checkbox"
+                            checked={leetcodeStatusFilter === "UNSOLVED"}
+                            onChange={(event) =>
+                              applyLeetcodeFilters(
+                                companyFilter,
+                                frequencyWindow,
+                                event.target.checked ? "UNSOLVED" : "ALL"
+                              )
+                            }
+                            className="h-4 w-4 rounded border-zinc-600 bg-zinc-950 text-blue-500 focus:ring-blue-500"
+                          />
+                          <span>Unsolved only</span>
+                        </label>
 
                         <button
                           type="button"

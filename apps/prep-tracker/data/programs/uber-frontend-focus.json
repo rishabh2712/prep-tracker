@@ -1,0 +1,495 @@
+{
+  "title": "Uber Frontend Interview Focus Tracker",
+  "description": "A reset, question-first frontend preparation tracker across JavaScript & async flow, DSA, and React/UI machine coding.",
+  "categories": [
+    {
+      "id": "javascript-async",
+      "label": "JavaScript & Async",
+      "description": "Runtime behavior, async orchestration, polyfills, and flow control.",
+      "questions": [
+        {
+          "id": "js-21",
+          "title": "mapLimit with Callback Completion",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nImplement a function `mapLimit(items, limit, iteratorFn, done)` that processes an array of items with a strict concurrency cap. The `iteratorFn` follows Node-style callback semantics and each item must be processed exactly once. The final `done` callback must receive results in the original input order.\n\n## Function Signature\n```javascript\nfunction mapLimit(items, limit, iteratorFn, done) {}\n```\n\n## Inputs\n- `items: any[]` \u2014 input values to process.\n- `limit: number` \u2014 maximum number of active async operations allowed at one time.\n- `iteratorFn(item, callback)` \u2014 callback-based async worker where `callback(err, result)` ends that item.\n- `done(err, results)` \u2014 final completion callback.\n\n## Output\n- If all operations succeed, invoke `done(null, results)` once, where `results[i]` corresponds to `items[i]`.\n- If any item fails, fail fast with `done(error)` and do not invoke `done` again.\n\n## Requirements\n- Never exceed the concurrency `limit`.\n- Start new work immediately when a slot opens.\n- Preserve input order in the final results array.\n- Guard against double-callback bugs from `iteratorFn`.\n- Handle `items.length === 0` correctly.\n\n## Example\n```javascript\nmapLimit([1, 2, 3, 4], 2, (id, callback) => {\n  setTimeout(() => callback(null, id * 10), 100);\n}, (err, results) => {\n  // results should be [10, 20, 30, 40]\n});\n```\n\n## Follow-ups\n- How would you rewrite this as `mapAsyncLimit` that returns a Promise?\n- How would you support cancellation or `AbortSignal`?\n- What changes if you want all-settled behavior instead of fail-fast?"
+        },
+        {
+          "id": "js-22",
+          "title": "Run Async Graph with Dependencies",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nImplement `runAsyncGraph(asyncGraph, done)` for a dependency graph of callback-based tasks. Each task may list other tasks that must complete before it can start. The scheduler should run tasks as soon as all dependencies are satisfied and call `done` when the full graph finishes.\n\n## Function Signature\n```javascript\nfunction runAsyncGraph(asyncGraph, done) {}\n```\n\n## Inputs\n- `asyncGraph` is an object where each key is a task id.\n- Each task record has:\n  - `dependency?: string[]`\n  - `task: (callback) => void`\n- `callback(err?)` signals task completion.\n\n## Output\n- Invoke `done(null)` when all tasks finish successfully.\n- Invoke `done(error)` immediately when any task fails or the graph is invalid.\n\n## Requirements\n- Respect task dependencies.\n- Allow independent entry-point tasks to run concurrently.\n- Detect cycles before execution.\n- Reject invalid dependency references.\n- Ensure `done` fires exactly once.\n\n## Example\n```javascript\nconst asyncGraph = {\n  a: { task: (done) => { console.log('A'); done(); } },\n  b: { task: (done) => setTimeout(() => { console.log('B'); done(); }, 100) },\n  c: { dependency: ['a', 'b'], task: (done) => { console.log('C'); done(); } },\n};\n\nrunAsyncGraph(asyncGraph, (err) => {\n  if (!err) console.log('All tasks finished!');\n});\n```\nExpected behavior: `c` must not start until both `a` and `b` complete.\n\n## Follow-ups\n- How would you collect per-task results in a map?\n- Would you use DFS or Kahn's algorithm for cycle detection?\n- How would you add a global concurrency limit across the whole graph?"
+        },
+        {
+          "id": "js-23",
+          "title": "DAG Task Scheduler with Topological Execution",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nDesign a scheduler for asynchronous tasks represented as a DAG. Each task has an id, an async function, and optional dependencies. Your scheduler must validate the graph, produce a safe execution order, and run tasks while surfacing failures in a predictable format.\n\n## Function Signature\n```javascript\nclass Scheduler {\n  constructor(tasks) {}\n  detectCycleAndSort() {}\n  async run() {}\n}\n```\n\n## Inputs\n- `tasks: Array<{ id: string, task: () => Promise<any>, dependencies?: string[] }>`\n\n## Output\n- `detectCycleAndSort()` should return a topological order or indicate a cycle.\n- `run()` should resolve with ordered task results or reject when the dependency graph is cyclic.\n\n## Requirements\n- Build adjacency and in-degree maps correctly.\n- Fail fast on missing dependencies.\n- Detect cycles before executing user tasks.\n- Execute in dependency-safe order.\n- Return enough information to diagnose which task failed.\n\n## Example\n```javascript\nconst tasks = [\n  { id: 'fetchDrivers', task: () => Promise.resolve(['d1']) },\n  { id: 'fetchTrips', task: () => Promise.resolve(['t1']) },\n  { id: 'joinView', dependencies: ['fetchDrivers', 'fetchTrips'], task: () => Promise.resolve('ready') },\n];\n```\nValid output order includes `fetchDrivers`, `fetchTrips`, then `joinView`.\n\n## Follow-ups\n- How would you add per-node concurrency after topological validation?\n- How would you support partial success when one branch fails?\n- How would you time out individual tasks?"
+        },
+        {
+          "id": "js-24",
+          "title": "Fetch With Retry, Backoff, and Jitter",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nWrite an async function `fetchWithRetry(url, options, maxRetries)` that wraps the native `fetch` API. It should retry only on retryable failures, back off exponentially between attempts, and add jitter to avoid synchronized retries.\n\n## Function Signature\n```javascript\nasync function fetchWithRetry(url, options, maxRetries) {}\n```\n\n## Inputs\n- `url: string`\n- `options?: { baseDelay?: number, ...fetchOptions }`\n- `maxRetries: number`\n\n## Output\n- Resolve with the successful response payload.\n- Reject with the final error when retries are exhausted or the failure is non-retryable.\n\n## Requirements\n- Retry on thrown network errors and HTTP `5xx` responses.\n- Do **not** retry on `4xx` responses.\n- Use exponential backoff: `baseDelay * 2^attempt`.\n- Add random jitter to each retry delay.\n- Preserve the original error context when ultimately failing.\n\n## Example\n```javascript\nconst data = await fetchWithRetry('/api/trips', { baseDelay: 1000 }, 3);\n```\nExpected behavior: if the first two requests fail with `503`, the third attempt should wait longer than the second and include random jitter.\n\n## Follow-ups\n- How would you make retries idempotent-safe?\n- Would you retry `429` differently from `503`?\n- How would you support `AbortSignal` cancellation mid-backoff?"
+        },
+        {
+          "id": "js-25",
+          "title": "Async Scheduler with Concurrency Limit",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nImplement an `AsyncScheduler` class that executes promise-returning tasks with a maximum concurrency limit. Tasks should start immediately when capacity exists and queue otherwise. Each enqueued task should resolve or reject independently.\n\n## Function Signature\n```javascript\nclass AsyncScheduler {\n  constructor(limit) {}\n  enqueue(task, timeoutMs) {}\n}\n```\n\n## Inputs\n- `limit: number` \u2014 maximum running tasks.\n- `task: () => Promise<any>` \u2014 async work unit.\n- `timeoutMs?: number` \u2014 optional timeout for that specific task.\n\n## Output\n- `enqueue` returns a Promise for that task's result.\n- Tasks should respect submission order when competing for open slots.\n\n## Requirements\n- Never run more than `limit` tasks at once.\n- Queue excess work and drain it as tasks finish.\n- Support per-task timeout using `Promise.race` or equivalent.\n- Clean up timer resources when a task settles.\n- Avoid deadlocks if a task rejects.\n\n## Example\n```javascript\nconst scheduler = new AsyncScheduler(2);\nscheduler.enqueue(() => fetch('/drivers'));\nscheduler.enqueue(() => fetch('/rides'));\nscheduler.enqueue(() => fetch('/payments'));\n```\nExpected behavior: only two network tasks are active at any given moment.\n\n## Follow-ups\n- How would you implement `cancel()`?\n- How would you return results in original submission order for a batch API?\n- How would you add priority while preventing starvation?"
+        },
+        {
+          "id": "js-26",
+          "title": "Ignoring Stale Async Work",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nDesign a request coordinator that prevents stale async results from overwriting fresh UI state. Multiple requests may overlap, and the earlier request can finish later than the most recent one.\n\n## Function Signature\n```javascript\nfunction createLatestOnlyFetcher(requestFn) {}\n```\n\n## Inputs\n- `requestFn(query): Promise<any>` \u2014 async function that fetches data.\n- Repeated calls may happen before earlier calls finish.\n\n## Output\n- Only the latest in-flight request may commit its result.\n- Older responses should be ignored or actively aborted.\n\n## Requirements\n- Prevent stale results from updating state.\n- Support either request ids, version tokens, or `AbortController`.\n- Ensure errors from stale requests do not surface as visible failures.\n- Make the contract explicit: ignore stale results or cancel them.\n\n## Example\n```javascript\nconst search = createLatestOnlyFetcher(fetchSearchResults);\nsearch('react');\nsearch('react hooks');\n```\nExpected behavior: if `'react'` resolves after `'react hooks'`, its payload must not overwrite the newer results.\n\n## Follow-ups\n- How would you combine this with debouncing?\n- When is ignoring enough versus true cancellation?\n- How do you test this deterministically?"
+        },
+        {
+          "id": "js-01",
+          "title": "The Chainable Driver",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nImplement an `UberDriver` class with chainable methods such as `pickup()`, `drop()`, and `drive()`. Tasks should execute asynchronously in sequence, but `coffeeBreak()` must always run before normal tasks regardless of where it appears in the chain.\n\n## Function Signature\n```javascript\nclass UberDriver {\n  pickup(name, id) {}\n  drive(distance) {}\n  coffeeBreak(minutes) {}\n  status() {}\n  drop() {}\n}\n```\n\n## Inputs\n- Method calls may be chained in any order.\n- Each task should simulate async work and start only after the previous task completes.\n- `coffeeBreak()` must be promoted ahead of standard tasks while preserving coffee-break call order.\n\n## Output\n- A chainable class that auto-starts on the next event loop tick and logs task execution history.\n\n## Example\n```javascript\nnew UberDriver()\n  .pickup(\"Alice\", 1)\n  .drive(5)\n  .coffeeBreak(3)\n  .pickup(\"Bob\", 2)\n  .status()\n  .drop();\n```\nExpected behavior: `coffeeBreak(3)` executes before `pickup(\"Alice\", 1)` even though it was chained later.\n\n## Follow-ups\n- How would you support cancellation?\n- What happens if multiple `coffeeBreak()` calls appear in the chain?"
+        },
+        {
+          "id": "js-02",
+          "title": "Batching Utility",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nCreate a utility that batches events and flushes them either when the batch size is reached or when a timer expires. The timer must reset correctly after every flush.\n\n## Function Signature\n```javascript\nclass DataBatcher {\n  constructor(callback, batchSize, timeoutMs) {}\n  add(data) {}\n  flush() {}\n}\n```\n\n## Inputs\n- `callback(batchedData)` receives the flushed batch.\n- `batchSize` controls immediate flush by size.\n- `timeoutMs` controls partial flush by elapsed time.\n\n## Output\n- A batching utility that never drops events and never fires empty flushes.\n\n## Example\n```javascript\nconst batcher = new DataBatcher(sendToServer, 3, 2000);\nbatcher.add(\"Event 1\");\nbatcher.add(\"Event 2\");\nbatcher.add(\"Event 3\");\n// flush immediately\n```\n\n## Follow-ups\n- How do you avoid double-flush when timer and size race each other?"
+        },
+        {
+          "id": "js-03",
+          "title": "Async Memoization",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nImplement a memoization wrapper for an asynchronous function that caches successful results, deduplicates parallel calls with the same arguments, and supports argument comparison robustly enough for real interview discussion.\n\n## Function Signature\n```javascript\nfunction memoizeAsync(asyncFn, options?) {}\n```\n\n## Inputs\n- `asyncFn: (...args) => Promise<any>`\n- Optional cache config such as TTL or resolver.\n\n## Output\n- A wrapped async function that returns cached results and shares in-flight work.\n\n## Example\n```javascript\nconst memoizedFetch = memoizeAsync(fetchUser);\nconst p1 = memoizedFetch(42);\nconst p2 = memoizedFetch(42);\n// p1 and p2 should share the same in-flight request\n```\n\n## Follow-ups\n- Do you cache failures?\n- How would you support deep argument equality or custom key resolvers?"
+        },
+        {
+          "id": "js-04",
+          "title": "API Rate Limiter",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nBuild a rate limiter decorator for an API function that allows at most `N` requests per minute using a rolling window. Overflow requests must follow a clearly stated contract such as reject, queue, or defer.\n\n## Function Signature\n```javascript\nfunction rateLimit(apiCall, maxRequests, timeWindowMs) {}\n```\n\n## Inputs\n- `apiCall: (...args) => Promise<any>`\n- `maxRequests: number`\n- `timeWindowMs: number`\n\n## Output\n- A wrapped API function that enforces a rolling-window request limit.\n\n## Example\n```javascript\nconst limitedFetch = rateLimit(fetchUser, 5, 60_000);\n```\n\n## Follow-ups\n- Should failed requests count against the limit?\n- How do you keep timestamp storage bounded?"
+        },
+        {
+          "id": "js-05",
+          "title": "Concurrency Mapping",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nImplement `mapAsyncLimit` so an array of inputs is processed through an asynchronous iteratee while never exceeding a maximum concurrency limit and still preserving output order.\n\n## Function Signature\n```javascript\nasync function mapAsyncLimit(items, iteratee, limit) {}\n```\n\n## Inputs\n- `items: T[]`\n- `iteratee: (item: T, index: number) => Promise<R>`\n- `limit: number`\n\n## Output\n- A promise that resolves to `R[]` in the same order as `items`.\n\n## Example\n```javascript\nconst result = await mapAsyncLimit([1,2,3,4], slowSquare, 2);\n```\n\n## Follow-ups\n- What should happen if one job rejects?\n- How would you support cancellation?"
+        },
+        {
+          "id": "js-06",
+          "title": "Deep Clone with Cycles",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nWrite a `deepClone` function that copies nested arrays and objects while handling circular references safely.\n\n## Function Signature\n```javascript\nfunction deepClone(value, seen = new WeakMap()) {}\n```\n\n## Inputs\n- `value: any`\n\n## Output\n- A structurally identical clone that preserves circular graph shape without reusing original object references.\n\n## Example\n```javascript\nconst a = { name: \"node\" };\na.self = a;\nconst copy = deepClone(a);\n// copy.self === copy\n```\n\n## Follow-ups\n- How do you treat Date, Map, Set, and functions?"
+        },
+        {
+          "id": "js-07",
+          "title": "Promise.all Polyfill",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nImplement your own version of `Promise.all()` that resolves results in input order and rejects on the first failure.\n\n## Function Signature\n```javascript\nfunction myPromiseAll(promises) {}\n```\n\n## Inputs\n- `promises: Array<Promise<any> | any>`\n\n## Output\n- A promise resolving to an array of ordered results or rejecting immediately on first failure.\n\n## Example\n```javascript\nawait myPromiseAll([Promise.resolve(1), 2, Promise.resolve(3)]);\n// [1, 2, 3]\n```\n\n## Follow-ups\n- How do you handle empty input?\n- How do you normalize plain values?"
+        },
+        {
+          "id": "js-08",
+          "title": "Advanced Debounce",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nBuild a debounce function that also exposes `.cancel()` and `.flush()` to abort pending work or force immediate execution.\n\n## Function Signature\n```javascript\nfunction debounce(fn, wait) { /* returns wrappedFn with cancel and flush */ }\n```\n\n## Inputs\n- `fn: (...args) => any`\n- `wait: number`\n\n## Output\n- A debounced function with explicit cancellation and flush controls.\n\n## Example\n```javascript\nconst debounced = debounce(saveDraft, 300);\ndebounced();\ndebounced.cancel();\n```\n\n## Follow-ups\n- What should `.flush()` return?\n- How do leading/trailing modes affect `.flush()`?"
+        },
+        {
+          "id": "js-09",
+          "title": "Function.prototype.bind Polyfill",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nImplement a polyfill for `Function.prototype.bind` supporting `this` binding, argument currying, and correct behavior when used with `new`.\n\n## Function Signature\n```javascript\nFunction.prototype.myBind = function (context, ...presetArgs) {}\n```\n\n## Inputs\n- `context: any`\n- `presetArgs: any[]`\n\n## Output\n- A bound function with correct `this`, currying, and constructor semantics.\n\n## Example\n```javascript\nconst bound = fn.myBind(ctx, 1, 2);\nbound(3);\n```\n\n## Follow-ups\n- How do you preserve the prototype chain when used with `new`?"
+        },
+        {
+          "id": "js-10",
+          "title": "Throttle Polyfill",
+          "difficulty": "Easy",
+          "contentMarkdown": "## Problem Statement\nWrite a throttle utility that ensures a function fires at most once every `X` milliseconds.\n\n## Function Signature\n```javascript\nfunction throttle(fn, wait, options?) {}\n```\n\n## Inputs\n- `fn: (...args) => any`\n- `wait: number`\n\n## Output\n- A wrapped function that enforces throttle semantics.\n\n## Example\n```javascript\nconst throttled = throttle(onScroll, 100);\n```"
+        },
+        {
+          "id": "js-11",
+          "title": "Promise Polyfill",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nBuild a simplified `Promise` implementation managing `pending`, `fulfilled`, and `rejected` states, along with `then` and `catch` chaining semantics.\n\n## Function Signature\n```javascript\nclass MyPromise {\n  constructor(executor) {}\n  then(onFulfilled, onRejected) {}\n  catch(onRejected) {}\n}\n```\n\n## Inputs\n- `executor: (resolve, reject) => void`\n\n## Output\n- A promise-like object that queues handlers and resolves asynchronously according to your contract.\n\n## Follow-ups\n- How do you queue callbacks registered before and after settlement?"
+        },
+        {
+          "id": "js-12",
+          "title": "Lodash GroupBy",
+          "difficulty": "Easy",
+          "contentMarkdown": "## Problem Statement\nImplement a polyfill for Lodash `groupBy`, grouping an array of values by property name or iteratee result.\n\n## Function Signature\n```javascript\nfunction groupBy(items, iteratee) {}\n```\n\n## Inputs\n- `items: any[]`\n- `iteratee: string | ((item) => string)`\n\n## Output\n- An object mapping group keys to arrays of matching items.\n\n## Example\n```javascript\ngroupBy([{age:20},{age:20},{age:30}], \"age\");\n// { 20: [...], 30: [...] }\n```"
+        },
+        {
+          "id": "js-13",
+          "title": "Function.prototype.call Polyfill",
+          "difficulty": "Easy",
+          "contentMarkdown": "## Problem Statement\nWrite a polyfill for `.call()` that invokes a function with an explicit `this` value and positional arguments.\n\n## Function Signature\n```javascript\nFunction.prototype.myCall = function (context, ...args) {}\n```\n\n## Inputs\n- `context: any`\n- `args: any[]`\n\n## Output\n- The return value of the invoked function."
+        },
+        {
+          "id": "js-14",
+          "title": "Function.prototype.apply Polyfill",
+          "difficulty": "Easy",
+          "contentMarkdown": "## Problem Statement\nWrite a polyfill for `.apply()` that invokes a function with an explicit `this` value and an array of arguments.\n\n## Function Signature\n```javascript\nFunction.prototype.myApply = function (context, argsArray) {}\n```\n\n## Inputs\n- `context: any`\n- `argsArray: any[] | null | undefined`\n\n## Output\n- The return value of the invoked function."
+        },
+        {
+          "id": "js-15",
+          "title": "Array.prototype.reduce Polyfill",
+          "difficulty": "Easy",
+          "contentMarkdown": "## Problem Statement\nImplement a polyfill for `Array.prototype.reduce`, including edge cases when no initial value is supplied.\n\n## Function Signature\n```javascript\nArray.prototype.myReduce = function (reducer, initialValue?) {}\n```\n\n## Inputs\n- `reducer: (acc, item, index, array) => any`\n- `initialValue?: any`\n\n## Output\n- The final accumulated value."
+        },
+        {
+          "id": "js-16",
+          "title": "Execute Once",
+          "difficulty": "Easy",
+          "contentMarkdown": "## Problem Statement\nCreate a `once()` helper that guarantees a function executes a single time and returns the cached result on later calls.\n\n## Function Signature\n```javascript\nfunction once(fn) {}\n```\n\n## Inputs\n- `fn: (...args) => any`\n\n## Output\n- A wrapped function that runs exactly once."
+        },
+        {
+          "id": "js-17",
+          "title": "Deep Flatten",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nImplement a function that recursively flattens a deeply nested object or array into a single-level representation.\n\n## Function Signature\n```javascript\nfunction deepFlatten(value, prefix = \"\") {}\n```\n\n## Inputs\n- `value: any`\n\n## Output\n- A flat object or array depending on the design you choose.\n\n## Example\n```javascript\ndeepFlatten({ a: { b: 1 }, c: [2, 3] });\n// { \"a.b\": 1, \"c.0\": 2, \"c.1\": 3 }\n```"
+        },
+        {
+          "id": "js-18",
+          "title": "Event Emitter",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nBuild a custom EventEmitter with `.on()`, `.off()`, and `.emit()`, ensuring listener cleanup works and does not leak memory.\n\n## Function Signature\n```javascript\nclass EventEmitter {\n  on(event, listener) {}\n  off(event, listener) {}\n  emit(event, ...args) {}\n}\n```\n\n## Inputs\n- `event: string`\n- `listener: (...args) => void | Promise<void>`\n\n## Output\n- Listener registration/removal and emitted event delivery according to your contract.\n\n## Follow-ups\n- How do you handle async listeners?\n- Should one failing listener stop the others?"
+        },
+        {
+          "id": "js-19",
+          "title": "Output Analysis",
+          "difficulty": "Easy",
+          "contentMarkdown": "## Problem Statement\nDetermine the exact console output order of a snippet mixing synchronous logs, `setTimeout`, and `Promise.resolve().then()`.\n\n## Function Signature\n```javascript\nfunction explainOutputOrder() {}\n```\n\n## Inputs\n- The supplied code snippet\n\n## Output\n- An ordered list or explanation of console output.\n\n## Example\n```javascript\nconsole.log(1);\nsetTimeout(() => console.log(2), 0);\nPromise.resolve().then(() => console.log(3));\nconsole.log(4);\n```\nExpected order: `1, 4, 3, 2`."
+        },
+        {
+          "id": "js-20",
+          "title": "Sequential Promise Execution",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nWrite a utility that takes an array of promise-returning functions and executes them sequentially rather than concurrently.\n\n## Function Signature\n```javascript\nasync function runSequential(tasks) {}\n```\n\n## Inputs\n- `tasks: Array<() => Promise<any>>`\n\n## Output\n- A promise that resolves to an ordered array of task results.\n\n## Example\n```javascript\nawait runSequential([taskA, taskB, taskC]);\n```\n\n## Follow-ups\n- What changes if you need fail-fast vs continue-on-error behavior?"
+        }
+      ]
+    },
+    {
+      "id": "dsa",
+      "label": "DSA",
+      "description": "Modern Uber-weighted graph, grid, heap, DP, and simulation questions for 2025\u20132026.",
+      "questions": [
+        {
+          "id": "dsa-01",
+          "title": "Robot Locator by Nearest Blocker Distances",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nYou are given a 2D warehouse grid where each cell is one of:\n- `O` \u2014 robot\n- `E` \u2014 empty space\n- `X` \u2014 blocker\n\nThe outer boundary of the grid also behaves like a blocker. You are given a query `[left, top, bottom, right]`. For every robot cell, compute the distance to the closest blocker in each of those four directions and return all robot coordinates that exactly match the query.\n\n## Function Signature\n```python\ndef find_matching_robots(grid, query):\n    pass\n```\n\n## Inputs\n- `grid: list[list[str]]`\n- `query: list[int]` in the order `[left, top, bottom, right]`\n\n## Output\n- A list of coordinates `[row, col]` for every matching robot.\n\n## Requirements\n- Count distance in cells from the robot to the nearest blocker in that direction.\n- Treat the grid edges as blockers.\n- Consider only robot cells as candidates.\n- Support multiple matches.\n\n## Example\n```python\ngrid = [\n    ['O', 'E', 'E', 'E', 'X'],\n    ['E', 'O', 'X', 'X', 'X'],\n    ['E', 'E', 'E', 'E', 'E'],\n    ['X', 'E', 'O', 'E', 'E'],\n    ['X', 'E', 'X', 'E', 'X']\n]\nquery = [2, 2, 4, 1]\n```\nExpected output:\n```python\n[[1, 1]]\n```\n\n## Follow-ups\n- How would you preprocess directional blocker distances in `O(m * n)`?\n- How would you answer many queries on the same grid efficiently?"
+        },
+        {
+          "id": "dsa-02",
+          "title": "Zombie Infection Spread",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nA 2D grid contains humans, zombies, and walls. Each minute, every zombie infects adjacent humans in the four cardinal directions. Compute the minimum number of minutes needed to infect all reachable humans.\n\n## Function Signature\n```javascript\nfunction minMinutesToInfect(grid) {}\n```\n\n## Inputs\n- `grid: number[][]` where values represent wall / human / zombie\n\n## Output\n- Minimum minutes to infect all humans, or `-1` if some humans can never be infected.\n\n## Requirements\n- Use multi-source BFS from all zombies.\n- Process infection level by level.\n- Track remaining humans efficiently.\n- Handle already-complete grids correctly.\n\n## Example\n```javascript\nminMinutesToInfect([\n  [2,1,1],\n  [1,1,0],\n  [0,1,1],\n])\n```\nExpected output: `4`\n\n## Follow-ups\n- What changes if diagonal infection is allowed?\n- How would you return the infection timestamp for each cell?"
+        },
+        {
+          "id": "dsa-03",
+          "title": "Next Greater Palindrome",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nGiven a very large integer represented as a string, return the next strictly greater palindromic number. Avoid brute-force incrementing; use a mirror-and-carry approach.\n\n## Function Signature\n```javascript\nfunction nextGreaterPalindrome(num) {}\n```\n\n## Inputs\n- `num: string`\n\n## Output\n- The next greater palindrome as a string.\n\n## Requirements\n- Handle very large numbers that do not fit in native integers.\n- Support edge cases like all `9`s.\n- Mirror the left half first; if that is not enough, propagate carry from the middle.\n\n## Example\n```javascript\nnextGreaterPalindrome('12932')\n```\nExpected output: `'13031'`\n\n## Follow-ups\n- How do odd and even lengths differ?\n- Why is brute-force invalid at scale?"
+        },
+        {
+          "id": "dsa-04",
+          "title": "Number of Islands II",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nYou start with an `m x n` water grid. Land positions are added one by one. After each addition, return the current number of islands.\n\n## Function Signature\n```javascript\nfunction numIslands2(m, n, positions) {}\n```\n\n## Inputs\n- `m: number`, `n: number`\n- `positions: number[][]` where each entry is `[row, col]`\n\n## Output\n- An array where the `i`th value is the island count after the `i`th add operation.\n\n## Requirements\n- Support duplicate add operations.\n- Use Union-Find with path compression and rank/size.\n- Merge only cardinal neighbors.\n- Run close to `O(k \u03b1(n))` rather than rescanning the whole grid.\n\n## Example\n```javascript\nnumIslands2(3, 3, [[0,0],[0,1],[1,2],[2,1],[1,1]])\n```\nExpected output: `[1,1,2,3,1]`\n\n## Follow-ups\n- How do you map 2D coordinates into a 1D DSU id?\n- What breaks if you recompute islands with DFS after each addition?"
+        },
+        {
+          "id": "dsa-05",
+          "title": "Making A Large Island",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nYou are given a binary grid. You may change exactly one `0` to `1`. Return the size of the largest island obtainable after that one change.\n\n## Function Signature\n```javascript\nfunction largestIsland(grid) {}\n```\n\n## Inputs\n- `grid: number[][]`\n\n## Output\n- Maximum island size after flipping at most one zero.\n\n## Requirements\n- Precompute connected-component ids and sizes.\n- When evaluating a zero, avoid double-counting neighboring components.\n- Handle all-land and all-water edge cases.\n\n## Example\n```javascript\nlargestIsland([\n  [1,0],\n  [0,1],\n])\n```\nExpected output: `3`\n\n## Follow-ups\n- Would you solve this with DFS labeling or Union-Find?\n- How do you deduplicate neighboring component ids?"
+        },
+        {
+          "id": "dsa-06",
+          "title": "Minimum Cost to Make at Least One Valid Path in a Grid",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nEach cell in a grid contains an arrow indicating a preferred direction. Moving in the indicated direction costs `0`; moving in any other direction costs `1`. Return the minimum cost to travel from the top-left to the bottom-right cell.\n\n## Function Signature\n```javascript\nfunction minCost(grid) {}\n```\n\n## Inputs\n- `grid: number[][]` where each value encodes a direction\n\n## Output\n- Minimum total cost to reach the destination.\n\n## Requirements\n- Use 0-1 BFS with a deque.\n- Treat zero-cost edges differently from one-cost edges.\n- Do not use naive BFS because weights are not uniform.\n\n## Example\n```javascript\nminCost([\n  [1,1,3],\n  [3,2,2],\n  [1,1,4],\n])\n```\nExpected output: `0`\n\n## Follow-ups\n- Why is 0-1 BFS better than standard Dijkstra here?\n- How would you reconstruct the chosen path?"
+        },
+        {
+          "id": "dsa-07",
+          "title": "Meeting Rooms III",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nGiven `n` meeting rooms and a list of meetings `[start, end]`, assign each meeting to the lowest-numbered available room. If no room is free, delay the meeting until the earliest room becomes available while preserving its duration. Return the room that hosted the most meetings.\n\n## Function Signature\n```javascript\nfunction mostBooked(n, meetings) {}\n```\n\n## Inputs\n- `n: number`\n- `meetings: number[][]`\n\n## Output\n- The room index with the highest booking count.\n\n## Requirements\n- Use one min-heap for available rooms and another for occupied rooms by end time.\n- Break ties by room number.\n- Correctly handle delayed meetings.\n\n## Example\n```javascript\nmostBooked(2, [[0,10],[1,5],[2,7],[3,4]])\n```\nExpected output: `0`\n\n## Follow-ups\n- Why are two heaps cleaner than one?\n- How do you handle simultaneous room releases?"
+        },
+        {
+          "id": "dsa-08",
+          "title": "The Number of the Smallest Unoccupied Chair",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nFriends arrive and leave at known times. Each arriving friend takes the smallest-numbered unoccupied chair. Return the chair number assigned to a target friend.\n\n## Function Signature\n```javascript\nfunction smallestChair(times, targetFriend) {}\n```\n\n## Inputs\n- `times: number[][]` where each entry is `[arrival, leaving]`\n- `targetFriend: number`\n\n## Output\n- The chair number assigned to the target friend.\n\n## Requirements\n- Process events in arrival order.\n- Release chairs whose occupants have already left.\n- Use heaps to track available chairs and occupied chairs.\n\n## Example\n```javascript\nsmallestChair([[1,4],[2,3],[4,6]], 1)\n```\nExpected output: `1`\n\n## Follow-ups\n- What happens when arrival and leave times are equal?\n- How does this relate to resource allocation systems?"
+        },
+        {
+          "id": "dsa-09",
+          "title": "Design Search Autocomplete System",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nDesign an autocomplete system that receives characters one at a time and returns the top 3 historical sentences matching the current prefix. Rankings are ordered by frequency descending, then lexicographically ascending.\n\n## Function Signature\n```javascript\nclass AutocompleteSystem {\n  constructor(sentences, times) {}\n  input(c) {}\n}\n```\n\n## Inputs\n- Historical sentences and frequencies\n- Stream of characters ending with `#` to finalize a sentence\n\n## Output\n- On each non-`#` character, return the top 3 suggestions.\n\n## Requirements\n- Support incremental updates when a new sentence is finalized.\n- Use a Trie or equivalent prefix index.\n- Apply top-k ranking efficiently.\n\n## Example\n```javascript\nconst system = new AutocompleteSystem(['i love you','island','ironman','i love leetcode'], [5,3,2,2]);\nsystem.input('i');\n```\nExpected output: `['i love you', 'island', 'i love leetcode']`\n\n## Follow-ups\n- Would you store full top-3 lists per trie node?\n- How would you decay old hotness over time?"
+        },
+        {
+          "id": "dsa-10",
+          "title": "Robot Bounded In Circle",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nA robot starts at the origin facing north and repeatedly executes a string of instructions containing `G`, `L`, and `R`. Determine whether the robot stays within some bounded circle forever.\n\n## Function Signature\n```javascript\nfunction isRobotBounded(instructions) {}\n```\n\n## Inputs\n- `instructions: string`\n\n## Output\n- `true` if the robot's repeated motion is bounded, otherwise `false`.\n\n## Requirements\n- Simulate one full instruction cycle.\n- Use the direction after one cycle to reason about infinite repetition.\n- Avoid simulating forever.\n\n## Example\n```javascript\nisRobotBounded('GGLLGG')\n```\nExpected output: `true`\n\n## Follow-ups\n- Why does ending with a non-north direction imply boundedness?\n- How would you prove correctness formally?"
+        },
+        {
+          "id": "dsa-11",
+          "title": "Subarrays with K Different Integers",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nReturn the number of subarrays that contain exactly `k` distinct integers.\n\n## Function Signature\n```javascript\nfunction subarraysWithKDistinct(nums, k) {}\n```\n\n## Inputs\n- `nums: number[]`\n- `k: number`\n\n## Output\n- Count of valid subarrays.\n\n## Requirements\n- Use the identity: `exactly(k) = atMost(k) - atMost(k - 1)`.\n- Maintain a sliding window frequency map.\n- Run in linear time.\n\n## Example\n```javascript\nsubarraysWithKDistinct([1,2,1,2,3], 2)\n```\nExpected output: `7`\n\n## Follow-ups\n- Why is directly counting exactly `k` harder than counting at most `k`?\n- How do duplicates affect the left pointer?"
+        },
+        {
+          "id": "dsa-12",
+          "title": "Number of Ways to Arrive at Destination",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nGiven a weighted undirected graph, return how many distinct shortest paths exist from node `0` to node `n - 1`, modulo `1e9 + 7`.\n\n## Function Signature\n```javascript\nfunction countPaths(n, roads) {}\n```\n\n## Inputs\n- `n: number`\n- `roads: number[][]` where each road is `[u, v, time]`\n\n## Output\n- Number of shortest paths modulo `1e9 + 7`.\n\n## Requirements\n- Extend Dijkstra's algorithm to track both distance and path count.\n- Reset path count when a strictly shorter path is found.\n- Add counts when an equally short path is found.\n\n## Example\n```javascript\ncountPaths(7, [[0,6,7],[0,1,2],[1,2,3],[1,3,3],[6,3,3],[3,5,1],[6,5,1],[2,5,1],[0,4,5],[4,6,2]])\n```\nExpected output: `4`\n\n## Follow-ups\n- Why can\u2019t plain BFS solve weighted graphs?\n- What state must be stored in the heap?"
+        },
+        {
+          "id": "dsa-13",
+          "title": "Largest Plus Sign",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nGiven an `n x n` grid with mines, return the order of the largest axis-aligned plus sign containing only `1`s.\n\n## Function Signature\n```javascript\nfunction orderOfLargestPlusSign(n, mines) {}\n```\n\n## Inputs\n- `n: number`\n- `mines: number[][]`\n\n## Output\n- Maximum plus-sign order.\n\n## Requirements\n- Precompute consecutive arm lengths in all four directions.\n- Solve in `O(n^2)` time.\n- Avoid naive expansion from every center.\n\n## Example\n```javascript\norderOfLargestPlusSign(5, [[4,2]])\n```\nExpected output: `2`\n\n## Follow-ups\n- What four DP passes do you need?\n- How do you define plus-sign order exactly?"
+        },
+        {
+          "id": "dsa-14",
+          "title": "Shortest Subarray with Sum at Least K",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nReturn the length of the shortest non-empty subarray whose sum is at least `k`. The array may contain negative numbers.\n\n## Function Signature\n```javascript\nfunction shortestSubarray(nums, k) {}\n```\n\n## Inputs\n- `nums: number[]`\n- `k: number`\n\n## Output\n- The minimum subarray length, or `-1` if none exists.\n\n## Requirements\n- Use prefix sums plus a monotonic deque.\n- Handle negative numbers correctly.\n- Run in linear time.\n\n## Example\n```javascript\nshortestSubarray([2,-1,2], 3)\n```\nExpected output: `3`\n\n## Follow-ups\n- Why does a normal sliding window fail with negatives?\n- What invariant does the deque maintain?"
+        },
+        {
+          "id": "dsa-15",
+          "title": "Robot Room Cleaner",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nYou control a robot that can move, turn, and clean but do not know the room layout in advance. Clean the entire accessible room.\n\n## Function Signature\n```javascript\nfunction cleanRoom(robot) {}\n```\n\n## Inputs\n- `robot` exposes movement and cleaning APIs.\n\n## Output\n- Clean every reachable cell exactly once.\n\n## Requirements\n- Use DFS/backtracking over an implicit graph.\n- Track visited logical coordinates.\n- Restore robot orientation when backtracking.\n\n## Example\n- No direct grid is provided. You must infer reachable cells from robot operations.\n\n## Follow-ups\n- How do you represent coordinates if the robot only knows relative moves?\n- Why is turning/backtracking correctness the hard part?"
+        },
+        {
+          "id": "dsa-16",
+          "title": "Find All People With Secret",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nPeople meet at various times. Person `0` and one other person know a secret initially. When two people meet, the secret is shared if at least one of them knows it at that time. Return all people who know the secret after all meetings.\n\n## Function Signature\n```javascript\nfunction findAllPeople(n, meetings, firstPerson) {}\n```\n\n## Inputs\n- `n: number`\n- `meetings: number[][]` with `[x, y, time]`\n- `firstPerson: number`\n\n## Output\n- Sorted list of people who end up knowing the secret.\n\n## Requirements\n- Process meetings grouped by time.\n- Use Union-Find per time slice or equivalent component reasoning.\n- Disconnect temporary unions for groups that do not connect to the secret source.\n\n## Example\n```javascript\nfindAllPeople(6, [[1,2,5],[2,3,8],[1,5,10]], 1)\n```\nExpected output: `[0,1,2,3,5]`\n\n## Follow-ups\n- Why can\u2019t you keep all unions forever?\n- How do you reset components that do not inherit the secret?"
+        },
+        {
+          "id": "dsa-17",
+          "title": "Parallel Courses III",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nThere are `n` courses with prerequisite relations. Each course also has a duration. Multiple courses may run in parallel once their prerequisites are complete. Return the minimum total time to finish all courses.\n\n## Function Signature\n```javascript\nfunction minimumTime(n, relations, time) {}\n```\n\n## Inputs\n- `n: number`\n- `relations: number[][]`\n- `time: number[]`\n\n## Output\n- Minimum completion time.\n\n## Requirements\n- Use topological sorting.\n- Track the best completion time reaching each node.\n- Combine DAG processing with DP over course durations.\n\n## Example\n```javascript\nminimumTime(3, [[1,3],[2,3]], [3,2,5])\n```\nExpected output: `8`\n\n## Follow-ups\n- Why is this not just cycle detection?\n- What DP value do you propagate along edges?"
+        },
+        {
+          "id": "dsa-18",
+          "title": "Minimum Obstacle Removal to Reach Corner",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nGiven a grid of `0`s and `1`s, you may move in four directions. Entering a `1` means removing one obstacle. Return the minimum obstacles to remove to reach the bottom-right corner.\n\n## Function Signature\n```javascript\nfunction minimumObstacles(grid) {}\n```\n\n## Inputs\n- `grid: number[][]`\n\n## Output\n- Minimum obstacle removals.\n\n## Requirements\n- Use 0-1 BFS.\n- Treat empty cells as cost `0` and obstacles as cost `1`.\n- Avoid standard BFS because edge weights differ.\n\n## Example\n```javascript\nminimumObstacles([[0,1,1],[1,1,0],[1,1,0]])\n```\nExpected output: `2`\n\n## Follow-ups\n- How is this different from Dijkstra?\n- What does the deque front vs back represent?"
+        },
+        {
+          "id": "dsa-19",
+          "title": "Count Subarrays With Fixed Bounds",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nGiven an array and two bounds `minK` and `maxK`, return the number of subarrays whose minimum value is exactly `minK` and maximum value is exactly `maxK`.\n\n## Function Signature\n```javascript\nfunction countSubarrays(nums, minK, maxK) {}\n```\n\n## Inputs\n- `nums: number[]`\n- `minK: number`\n- `maxK: number`\n\n## Output\n- Count of valid subarrays.\n\n## Requirements\n- Track the last seen positions of `minK`, `maxK`, and the most recent invalid element.\n- Count valid windows ending at each index in linear time.\n\n## Example\n```javascript\ncountSubarrays([1,3,5,2,7,5], 1, 5)\n```\nExpected output: `2`\n\n## Follow-ups\n- Why does each index contribute `max(0, min(lastMin, lastMax) - lastBad)`?\n- What counts as an invalid element?"
+        },
+        {
+          "id": "dsa-20",
+          "title": "Word Search II",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nGiven a board of letters and a list of words, return all words that can be formed by sequentially adjacent cells. Each cell may be used at most once per word.\n\n## Function Signature\n```javascript\nfunction findWords(board, words) {}\n```\n\n## Inputs\n- `board: string[][]`\n- `words: string[]`\n\n## Output\n- All matching words.\n\n## Requirements\n- Build a Trie from the dictionary.\n- Run DFS from each board cell while pruning invalid prefixes.\n- Avoid running a full DFS separately for every word.\n\n## Example\n```javascript\nfindWords([\n  ['o','a','a','n'],\n  ['e','t','a','e'],\n  ['i','h','k','r'],\n  ['i','f','l','v']\n], ['oath','pea','eat','rain'])\n```\nExpected output: `['oath','eat']`\n\n## Follow-ups\n- How do you avoid duplicate word output?\n- When should Trie nodes be pruned?"
+        },
+        {
+          "id": "dsa-21",
+          "title": "Reconstruct Itinerary",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nYou are given airline tickets as directed edges `[from, to]`. Use every ticket exactly once and reconstruct the lexicographically smallest valid itinerary starting at `JFK`.\n\n## Function Signature\n```javascript\nfunction findItinerary(tickets) {}\n```\n\n## Inputs\n- `tickets: string[][]`\n\n## Output\n- An itinerary array of airport codes.\n\n## Requirements\n- Use all edges exactly once.\n- Return the lexicographically smallest valid itinerary.\n- Apply Hierholzer\u2019s algorithm or equivalent Eulerian path reasoning.\n\n## Example\n```javascript\nfindItinerary([['MUC','LHR'],['JFK','MUC'],['SFO','SJC'],['LHR','SFO']])\n```\nExpected output: `['JFK','MUC','LHR','SFO','SJC']`\n\n## Follow-ups\n- Why does greedy DFS fail without postorder insertion?\n- How do you maintain lexical order efficiently?"
+        },
+        {
+          "id": "dsa-22",
+          "title": "Single-Threaded CPU",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nGiven tasks with enqueue time and processing time, simulate a single-threaded CPU that always picks the shortest available task, breaking ties by original index.\n\n## Function Signature\n```javascript\nfunction getOrder(tasks) {}\n```\n\n## Inputs\n- `tasks: number[][]` where each task is `[enqueueTime, processingTime]`\n\n## Output\n- The order of task indices processed by the CPU.\n\n## Requirements\n- Sort tasks by enqueue time.\n- Use a min-heap keyed by processing time then index.\n- Advance time correctly when the heap is empty.\n\n## Example\n```javascript\ngetOrder([[1,2],[2,4],[3,2],[4,1]])\n```\nExpected output: `[0,2,3,1]`\n\n## Follow-ups\n- What if many tasks arrive at the same time?\n- Why do we need both sorting and a heap?"
+        },
+        {
+          "id": "dsa-23",
+          "title": "Shortest Path in a Grid with Obstacles Elimination",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nYou are given a grid with obstacles and an integer `k`. You may eliminate up to `k` obstacles while moving from the top-left to the bottom-right. Return the shortest path length.\n\n## Function Signature\n```javascript\nfunction shortestPath(grid, k) {}\n```\n\n## Inputs\n- `grid: number[][]`\n- `k: number`\n\n## Output\n- Shortest path length, or `-1` if impossible.\n\n## Requirements\n- Use BFS with state `(row, col, remainingK)`.\n- Track visited states in 3D or equivalent dominance-aware structure.\n- Do not collapse states with different remaining eliminations.\n\n## Example\n```javascript\nshortestPath([[0,0,0],[1,1,0],[0,0,0],[0,1,1],[0,0,0]], 1)\n```\nExpected output: `6`\n\n## Follow-ups\n- Why is `(row, col)` alone insufficient as visited state?\n- What pruning is safe here?"
+        },
+        {
+          "id": "dsa-24",
+          "title": "Number of Substrings Containing All Three Characters",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nGiven a string containing only `a`, `b`, and `c`, count the number of substrings containing at least one occurrence of all three characters.\n\n## Function Signature\n```javascript\nfunction numberOfSubstrings(s) {}\n```\n\n## Inputs\n- `s: string`\n\n## Output\n- Count of valid substrings.\n\n## Requirements\n- Use sliding window or last-seen positions.\n- Count contributions efficiently without enumerating all substrings.\n\n## Example\n```javascript\nnumberOfSubstrings('abcabc')\n```\nExpected output: `10`\n\n## Follow-ups\n- How would you solve it using last-seen indices in `O(n)`?\n- How does this compare to minimum-window style problems?"
+        },
+        {
+          "id": "dsa-25",
+          "title": "Minimum Interval to Include Each Query",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nFor each query point, return the length of the smallest interval that contains it. If no interval contains the query, return `-1`.\n\n## Function Signature\n```javascript\nfunction minInterval(intervals, queries) {}\n```\n\n## Inputs\n- `intervals: number[][]`\n- `queries: number[]`\n\n## Output\n- Array of answers aligned to the original query order.\n\n## Requirements\n- Sort intervals and queries offline.\n- Use a min-heap keyed by interval length.\n- Remove heap entries that no longer cover the current query.\n\n## Example\n```javascript\nminInterval([[1,4],[2,4],[3,6],[4,4]], [2,3,4,5])\n```\nExpected output: `[3,3,1,4]`\n\n## Follow-ups\n- Why is offline sorting useful here?\n- What heap fields do you need to keep?"
+        },
+        {
+          "id": "dsa-26",
+          "title": "Minimum Score of a Path Between Two Cities",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nYou are given an undirected weighted graph of cities. Return the minimum edge weight that can appear on any path between city `1` and city `n`.\n\n## Function Signature\n```javascript\nfunction minScore(n, roads) {}\n```\n\n## Inputs\n- `n: number`\n- `roads: number[][]` where each road is `[a, b, distance]`\n\n## Output\n- Minimum possible score.\n\n## Requirements\n- Recognize that you only need the minimum edge in the connected component containing both endpoints.\n- DFS/BFS/Union-Find are sufficient.\n- No shortest-path algorithm is required.\n\n## Example\n```javascript\nminScore(4, [[1,2,9],[2,3,6],[2,4,5],[1,4,7]])\n```\nExpected output: `5`\n\n## Follow-ups\n- Why is Dijkstra unnecessary?\n- How would you justify the connected-component trick?"
+        },
+        {
+          "id": "dsa-27",
+          "title": "Cherry Pickup II",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nTwo robots start at the top row of a grid, one at the leftmost column and one at the rightmost column. Each row, both robots move to the next row and may shift left, stay, or shift right. Maximize the total cherries collected.\n\n## Function Signature\n```javascript\nfunction cherryPickup(grid) {}\n```\n\n## Inputs\n- `grid: number[][]`\n\n## Output\n- Maximum cherries collectable by both robots.\n\n## Requirements\n- Use DP over row and both column positions.\n- Avoid double-counting when both robots land on the same cell.\n- Optimize the state from naive 4D reasoning to 3D DP.\n\n## Example\n```javascript\ncherryPickup([\n  [3,1,1],\n  [2,5,1],\n  [1,5,5],\n  [2,1,1],\n])\n```\nExpected output: `24`\n\n## Follow-ups\n- Why is memoization over `(row, c1, c2)` sufficient?\n- What is the transition fan-out per state?"
+        },
+        {
+          "id": "dsa-28",
+          "title": "Minimum Cost to Convert String",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nYou are given two equal-length strings `source` and `target`, along with allowed single-character conversions and their costs. Return the minimum total cost to convert `source` into `target`, or `-1` if impossible.\n\n## Function Signature\n```javascript\nfunction minimumCost(source, target, original, changed, cost) {}\n```\n\n## Inputs\n- `source: string`\n- `target: string`\n- `original: string[]`\n- `changed: string[]`\n- `cost: number[]`\n\n## Output\n- Minimum total conversion cost.\n\n## Requirements\n- Model character conversions as a weighted graph over 26 letters.\n- Precompute all-pairs shortest paths with Floyd-Warshall or repeated Dijkstra.\n- Sum per-position conversion costs.\n\n## Example\n```javascript\nminimumCost('abcd', 'acbe', ['a','b','c','c','e','d'], ['b','c','b','e','b','e'], [2,5,5,1,2,20])\n```\nExpected output: a finite minimum cost if all required conversions are reachable.\n\n## Follow-ups\n- Why is a 26x26 APSP solution attractive here?\n- When would repeated Dijkstra be preferable?"
+        },
+        {
+          "id": "dsa-29",
+          "title": "Replace Words",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nGiven a dictionary of root words and a sentence, replace each word in the sentence with the shortest root that is a prefix of it. If no root matches, keep the original word.\n\n## Function Signature\n```javascript\nfunction replaceWords(dictionary, sentence) {}\n```\n\n## Inputs\n- `dictionary: string[]`\n- `sentence: string`\n\n## Output\n- Transformed sentence.\n\n## Requirements\n- Build a Trie of root words.\n- For each token, stop at the first root found.\n- Prefer the shortest valid root.\n\n## Example\n```javascript\nreplaceWords(['cat','bat','rat'], 'the cattle was rattled by the battery')\n```\nExpected output: `'the cat was rat by the bat'`\n\n## Follow-ups\n- Could hashing work too?\n- Why is Trie often cleaner for prefix lookups?"
+        },
+        {
+          "id": "dsa-30",
+          "title": "Alien Dictionary",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nYou are given a sorted list of words from an unknown language. Derive a valid character ordering. If no valid ordering exists, return an empty string.\n\n## Function Signature\n```javascript\nfunction alienOrder(words) {}\n```\n\n## Inputs\n- `words: string[]`\n\n## Output\n- A string representing one valid topological ordering of characters.\n\n## Requirements\n- Build precedence edges from the first differing character of adjacent words.\n- Include characters that never appear in edges.\n- Detect invalid prefix cases and cycles.\n\n## Example\n```javascript\nalienOrder(['wrt','wrf','er','ett','rftt'])\n```\nExpected output: `'wertf'`\n\n## Follow-ups\n- Why must you compare adjacent words only?\n- What invalid prefix case should return empty immediately?"
+        },
+        {
+          "id": "dsa-31",
+          "title": "Total Cost to Hire K Workers",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nYou have an array of hiring costs. In each session you may hire from the first `candidates` workers or the last `candidates` workers. Return the minimum total cost to hire exactly `k` workers.\n\n## Function Signature\n```javascript\nfunction totalCost(costs, k, candidates) {}\n```\n\n## Inputs\n- `costs: number[]`\n- `k: number`\n- `candidates: number`\n\n## Output\n- Minimum total hiring cost.\n\n## Requirements\n- Use two min-heaps or one heap tagged by side.\n- Refill from the appropriate side after each hire.\n- Break ties by lower cost then smaller index/left-side ordering as specified.\n\n## Example\n```javascript\ntotalCost([17,12,10,2,7,2,11,20,8], 3, 4)\n```\nExpected output: `11`\n\n## Follow-ups\n- How do you prevent left/right windows from overlapping incorrectly?\n- Why is a sort-based greedy not valid here?"
+        },
+        {
+          "id": "dsa-32",
+          "title": "Cheapest Flights Within K Stops",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nYou are given flights between cities with prices. Find the cheapest price from `src` to `dst` with at most `k` stops.\n\n## Function Signature\n```javascript\nfunction findCheapestPrice(n, flights, src, dst, k) {}\n```\n\n## Inputs\n- `n: number`\n- `flights: number[][]` where each edge is `[from, to, price]`\n- `src: number`, `dst: number`, `k: number`\n\n## Output\n- Cheapest price subject to the stop constraint, or `-1` if unreachable.\n\n## Requirements\n- Respect the stop limit in the state.\n- Use a modified Dijkstra/BFS/Bellman-Ford approach that tracks both node and stops used.\n- Avoid pruning a more expensive state too early if it uses fewer stops.\n\n## Example\n```javascript\nfindCheapestPrice(4, [[0,1,100],[1,2,100],[2,3,100],[0,2,500]], 0, 3, 1)\n```\nExpected output: `600`\n\n## Follow-ups\n- Why does plain Dijkstra fail without stop-aware state?\n- When is Bellman-Ford especially convenient here?"
+        }
+      ]
+    },
+    {
+      "id": "react-ui",
+      "label": "React & UI Machine Coding",
+      "description": "UI state modeling, performance, and browser-facing coding reps.",
+      "questions": [
+        {
+          "id": "react-01",
+          "title": "Grid Light Box",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nBuild a grid of lights. Each click turns a cell green. Once all cells are active, they should unwind back to inactive in the exact reverse order of clicks.\n\n## Expected Interface\n```tsx\nfunction GridLightBox() { /* React component */ }\n```\n\n## Requirements\n- Render a responsive grid of clickable cells.\n- Track activation order exactly.\n- After all cells are active, deactivate them one by one in reverse order without blocking the main thread.\n\n## Follow-ups\n- How would you avoid stale closure bugs during unwind?"
+        },
+        {
+          "id": "react-02",
+          "title": "Concurrency Progress Bars",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nClicking a button should create animated progress bars. Only a fixed number may animate simultaneously; later bars must queue.\n\n## Expected Interface\n```tsx\nfunction ProgressBarQueue() { /* React component */ }\n```\n\n## Requirements\n- Add a new progress bar on button click.\n- Animate active bars from 0% to 100%.\n- Enforce a concurrency limit such as 3 active bars.\n- Queued bars should start automatically when a slot frees up."
+        },
+        {
+          "id": "react-03",
+          "title": "Interactive Shape UI",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nRender an irregular set of positioned shapes from a JSON coordinate payload and support click interactions through event delegation.\n\n## Expected Interface\n```tsx\nfunction ShapeCanvas({ shapes }) { /* React component */ }\n```\n\n## Requirements\n- Derive DOM or SVG nodes from coordinate data.\n- Handle interactions efficiently even when shape count grows.\n- Keep hit-testing or delegated event handling clean and predictable."
+        },
+        {
+          "id": "react-04",
+          "title": "Confluence Sidebar (Tree UI)",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nTransform a flat list of nodes into a nested collapsible tree sidebar.\n\n## Expected Interface\n```tsx\nfunction SidebarTree({ items }) { /* React component */ }\n```\n\n## Requirements\n- Build parent-child relationships from flat input.\n- Support collapse and expand.\n- Keep rendering stable for deep trees."
+        },
+        {
+          "id": "react-05",
+          "title": "Nested Comments Engine",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nConvert a flat list of comments with `replyTo` ids into a nested threaded UI.\n\n## Expected Interface\n```tsx\nfunction NestedComments({ comments }) { /* React component */ }\n```\n\n## Requirements\n- Build a comment tree from flat data.\n- Render replies recursively.\n- Handle missing parents gracefully."
+        },
+        {
+          "id": "react-06",
+          "title": "Expiry Counter",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nCreate a counter that stores timestamps and returns how many entries remain unexpired within a TTL window, using efficient lookup for reads.\n\n## Expected Interface\n```tsx\nclass ExpiryCounter {\n  add(timestamp) {}\n  count(now) {}\n}\n```\n\n## Requirements\n- Support append-heavy workloads.\n- Use binary search or another efficient approach for reads.\n- Ignore expired timestamps lazily rather than rescanning everything."
+        },
+        {
+          "id": "react-07",
+          "title": "Overlapping Circles",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nUsers can place circles with varying radii on a surface. Overlapping circles must be detected and highlighted.\n\n## Expected Interface\n```tsx\nfunction CircleBoard() { /* React component */ }\n```\n\n## Requirements\n- Allow circle placement by user interaction.\n- Detect overlap mathematically, not from DOM measurements alone.\n- Visually highlight collisions."
+        },
+        {
+          "id": "react-08",
+          "title": "Typeahead / Autocomplete",
+          "difficulty": "Hard",
+          "contentMarkdown": "## Problem Statement\nBuild a search input with debouncing, response caching, and stale-result protection for out-of-order responses.\n\n## Expected Interface\n```tsx\nfunction Typeahead() { /* React component */ }\n```\n\n## Requirements\n- Debounce network calls.\n- Cache previous results by query.\n- Prevent slower earlier responses from overwriting newer ones.\n- Handle loading and empty states cleanly."
+        },
+        {
+          "id": "react-09",
+          "title": "Exclusivity Vertical Menu",
+          "difficulty": "Easy",
+          "contentMarkdown": "## Problem Statement\nCreate a collapsible vertical menu where opening one section closes any open sibling section.\n\n## Expected Interface\n```tsx\nfunction ExclusiveMenu({ items }) { /* React component */ }\n```\n\n## Requirements\n- Render nested or grouped sections.\n- Allow only one expanded sibling at a time.\n- Keep keyboard interaction straightforward."
+        },
+        {
+          "id": "react-10",
+          "title": "Password Strength Analyzer",
+          "difficulty": "Easy",
+          "contentMarkdown": "## Problem Statement\nBuild a password strength meter that updates in real time based on rules like length, symbols, uppercase, and lowercase.\n\n## Expected Interface\n```tsx\nfunction PasswordStrengthMeter() { /* React component */ }\n```\n\n## Requirements\n- Evaluate password rules efficiently on each keystroke.\n- Show clear visual feedback.\n- Avoid laggy updates during fast typing."
+        },
+        {
+          "id": "react-11",
+          "title": "Custom `useQuery` Hook",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nWrite a custom React hook that wraps a promise-returning function and exposes `loading`, `error`, and `data` state.\n\n## Expected Interface\n```tsx\nfunction useQuery(queryFn, deps) {}\n```\n\n## Requirements\n- Handle loading, success, and failure states.\n- Avoid setting state after unmount.\n- Re-run when dependencies change."
+        },
+        {
+          "id": "react-12",
+          "title": "Infinite Scroll",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nImplement a performant infinite scrolling list using Intersection Observer.\n\n## Expected Interface\n```tsx\nfunction InfiniteList() { /* React component */ }\n```\n\n## Requirements\n- Load more content when sentinel becomes visible.\n- Avoid duplicate loads.\n- Provide loading and end-of-list states."
+        },
+        {
+          "id": "react-13",
+          "title": "Accessible Modal",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nBuild a modal dialog that traps focus, restores focus on close, and blocks background scroll.\n\n## Expected Interface\n```tsx\nfunction Modal({ open, onClose, children }) { /* React component */ }\n```\n\n## Requirements\n- Trap tab focus inside the modal.\n- Close on Escape if allowed.\n- Prevent background page scroll while open.\n- Restore focus to opener when closed."
+        },
+        {
+          "id": "react-14",
+          "title": "CSS-Driven Loading Animation",
+          "difficulty": "Easy",
+          "contentMarkdown": "## Problem Statement\nCreate a loading animation that relies on CSS rather than JavaScript timers, so the main thread remains free for app logic.\n\n## Expected Interface\n```tsx\nfunction LoadingSpinner() { /* React component */ }\n```\n\n## Requirements\n- Use CSS animation primitives.\n- Keep the component accessible.\n- Avoid JS-driven frame updates."
+        },
+        {
+          "id": "react-15",
+          "title": "Interactive Star Rating",
+          "difficulty": "Easy",
+          "contentMarkdown": "## Problem Statement\nBuild a star rating component with hover previews and persistent selection.\n\n## Expected Interface\n```tsx\nfunction StarRating({ max = 5 }) { /* React component */ }\n```\n\n## Requirements\n- Support hover and click.\n- Persist selected rating.\n- Handle keyboard interaction if time permits."
+        },
+        {
+          "id": "react-16",
+          "title": "Accessible Accordion",
+          "difficulty": "Easy",
+          "contentMarkdown": "## Problem Statement\nBuild an accordion that supports dynamic content heights and correct ARIA attributes.\n\n## Expected Interface\n```tsx\nfunction Accordion({ sections }) { /* React component */ }\n```\n\n## Requirements\n- Manage expanded state.\n- Animate or transition content height safely.\n- Expose correct ARIA relationships."
+        },
+        {
+          "id": "react-17",
+          "title": "Todo List with Optimistic UI",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nBuild a todo list where add/delete updates the UI immediately before a mock API confirms success.\n\n## Expected Interface\n```tsx\nfunction TodoList() { /* React component */ }\n```\n\n## Requirements\n- Apply optimistic updates on add/delete.\n- Rollback on failure.\n- Keep ids and list state stable."
+        },
+        {
+          "id": "react-18",
+          "title": "Unwinding Color Boxes",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nRender boxes in a row. Clicking them turns them green. An unwind process turns them white one by one with a delay, without blocking the main thread.\n\n## Expected Interface\n```tsx\nfunction UnwindingBoxes() { /* React component */ }\n```\n\n## Requirements\n- Track click order.\n- Perform delayed unwind asynchronously.\n- Avoid blocking rendering during the sequence."
+        },
+        {
+          "id": "react-19",
+          "title": "Component Re-renders",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nDiagnose and fix a React component that renders twice on every state update. Explain whether Strict Mode, prop identity, or state placement is the culprit.\n\n## Expected Interface\n```tsx\nfunction ProblemComponent(props) { /* debug and optimize */ }\n```\n\n## Requirements\n- Identify why re-renders happen.\n- Show a concrete optimization.\n- Explain when a render is expected vs truly wasteful."
+        },
+        {
+          "id": "react-20",
+          "title": "Ref vs State Optimization",
+          "difficulty": "Medium",
+          "contentMarkdown": "## Problem Statement\nDesign a component that tracks mouse coordinates using `useRef` instead of `useState` where appropriate to avoid unnecessary re-renders and layout thrashing.\n\n## Expected Interface\n```tsx\nfunction MouseTracker() { /* React component */ }\n```\n\n## Requirements\n- Capture frequent coordinate updates efficiently.\n- Decide when refs are better than state.\n- Keep UI updates intentional instead of automatic on every event."
+        }
+      ]
+    }
+  ]
+}

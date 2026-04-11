@@ -22,6 +22,12 @@ For Uber `frontend / web` interview recovery after time away from frontend work,
 - `prep/references/uber-l5a-frontend-question-bank.md`
 - `prep/references/uber-l5a-frontend-recovery-ladder.md`
 
+## Chrome AI prompt
+
+If you want a Chrome-based AI to review the live tracker like a lead product designer, use:
+
+- `/Users/rishabhbansal/Desktop/source/journey/uber-ai/prep/prompts/chrome-ai-product-lead-review.md`
+
 ## Workflow
 1. Open today's packet in `packets/`.
 2. Initialize today's code workspace: `npm run prep:new-day -- <day-number>`.
